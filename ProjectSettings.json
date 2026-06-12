@@ -1,0 +1,14 @@
+{
+  "project_name": "Yazh XR Pet App",
+  "project_id": "yazh-ur-xr-001",
+  "version": "0.1.0-prototype",
+  "engine": "Unity 6 LTS",
+  "target_platforms": ["iOS", "Android"],
+  "min_ios_version": "12.0",
+  "min_android_version": 24,
+  "ar_framework": "AR Foundation",
+  "physics_engine": "PhysX",
+  "rendering_pipeline": "HDRP",
+  "scripting_language": "C#",
+  "net_framework": ".NET 4.8 / IL2CPP"
+}

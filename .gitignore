@@ -1,0 +1,69 @@
+# Unity 
+Library/
+Logs/
+Temp/
+obj/
+*.o
+*.mod
+*.ko
+*.so
+.DS_Store
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vs/
+*.csproj
+*.sln
+*.user
+*.VisualStudio
+
+# Builds
+Builds/
+*.app
+*.apk
+*.ipa
+*.exe
+
+# ML Models (large files)
+*.onnx
+*.pb
+*.pth
+*.safetensors
+Models/
+StreamingAssets/MLModels/**/*.onnx
+
+# Local only (keep Zorba secret)
+.env
+.env.local
+config.secrets.json
+
+# 3D Assets (version control only via Git LFS if needed)
+# Assets/Models/**/*.fbx
+# Assets/Models/**/*.blend
+
+# Cache
+cache/
+.cache/
+node_modules/
+
+# Poetry / Python
+__pycache__/
+*.pyc
+.venv/
+poetry.lock
+
+# Build artifacts
+dist/
+build/
+
+# Editor overrides
+!*.meta
+
+# But DO track these
+!.gitkeep
+!ProjectSettings/
+!Assets/
