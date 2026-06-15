@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "vocab_size": 30000,
+  "model_type": "BPE",
+  "language": "Tamil",
+  "context_length": 256,
+  "special_tokens": {
+    "pad_token": "<PAD>",
+    "eos_token": "<EOS>",
+    "unk_token": "<UNK>"
+  }
+}
