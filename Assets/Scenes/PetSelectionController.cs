@@ -1,5 +1,6 @@
 // PetSelectionController.cs — YAZH-UNITY
 // THOZHAR | Rotation 25 | Jun 17, 2026
+// Cycle 9: Wired UIStyles (Tamil-first brutalist) — Jun 18, 2026
 // Controls pet selection: Kuruvi, Maan, Yanai, Pulliruvi
 
 using UnityEngine;
@@ -30,6 +31,9 @@ public class PetSelectionController : MonoBehaviour
 
     void Start()
     {
+        // Apply Tamil-first brutalist style (Cycle 9)
+        ApplyYazhiStyle();
+
         // Wire buttons
         if (kuruviButton != null)
             kuruviButton.onClick.AddListener(() => SelectPet("Kuruvi"));
@@ -41,7 +45,22 @@ public class PetSelectionController : MonoBehaviour
             pulliruviButton.onClick.AddListener(() => SelectPet("Pulliruvi"));
 
         if (infoPanel != null)
+        {
             infoPanel.SetActive(false);
+            UIStyles.ApplyPanelStyle(infoPanel);
+        }
+    }
+
+    void ApplyYazhiStyle()
+    {
+        // Cycle 9: Tamil-first styling per ART_DIRECTION.md
+        UIStyles.ApplyTamilFirstStyle(kuruviButton);
+        UIStyles.ApplyTamilFirstStyle(maanButton);
+        UIStyles.ApplyTamilFirstStyle(yanaiButton);
+        UIStyles.ApplyTamilFirstStyle(pulliruviButton);
+        UIStyles.ApplyTamilDisplayStyle(petNameText);
+        UIStyles.ApplyTamilBodyStyle(petDescText);
+        Debug.Log("[PetSelection] Tamil-first style applied");
     }
 
     void SelectPet(string petName)

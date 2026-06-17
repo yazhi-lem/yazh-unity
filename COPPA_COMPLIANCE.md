@@ -446,7 +446,7 @@ private System.DateTime? consentTimestamp = null;
 
 ---
 
-**Implemented by:** KAAVAL (Security Agent)  
+**Implemented by:** KARUPPU (Security Agent)  
 **Date:** 2026-06-18  
 **Status:** READY FOR APP STORE SUBMISSION ✓  
 **Compliance Level:** COPPA + DPDP + App Store Guidelines ✓

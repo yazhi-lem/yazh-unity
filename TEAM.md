@@ -79,7 +79,7 @@
 
 ---
 
-### KAAVAL — Security
+### KARUPPU — Security
 **Reports to:** VAJRA (technical), ANBU (compliance)
 **Role:** Security auditing, code hardening, privacy compliance
 
@@ -160,13 +160,13 @@ Project Owner (Yazhi)
 │   ├── THOZHAR (UI Designer) — technical guidance
 │   ├── ARIVU (ML Integration) — technical guidance
 │   ├── UYIR (DevOps) — technical guidance
-│   └── KAAVAL (Security) — technical guidance
+│   └── KARUPPU (Security) — technical guidance
 └── ANBU (Team Coord)
     ├── KANAKU (Go-To-Market) — coordination
     └── OVIYA (Art Direction) — coordination
 ```
 
-**Key principle:** VAJRA owns all technical decisions. ANBU owns all coordination, scheduling, and cross-team communication. KAAVAL reports to VAJRA on technical security matters and to ANBU on compliance matters.
+**Key principle:** VAJRA owns all technical decisions. ANBU owns all coordination, scheduling, and cross-team communication. KARUPPU reports to VAJRA on technical security matters and to ANBU on compliance matters.
 
 ---
 
@@ -189,7 +189,7 @@ Project Owner (Yazhi)
 | Art spec → Scene styling | OVIYA | THOZHAR | 🔴 Not started |
 | Model integration → GameManager | ARIVU | VAJRA | 🔴 Not started |
 | Scene architecture → UI implementation | VAJRA | THOZHAR | 🔴 Not started |
-| Security re-audit → Post-feature | KAAVAL | All | ⏳ After Week 4 |
+| Security re-audit → Post-feature | KARUPPU | All | ⏳ After Week 4 |
 | Build env → CI/CD testing | UYIR | VAJRA | 🟡 In progress |
 
 ### File Conventions
@@ -255,7 +255,7 @@ Project Owner (Yazhi)
 **Milestone:** Live on iOS App Store + Android Play Store
 
 **Dependencies:**
-- KAAVAL must complete final security/privacy audit by Week 9
+- KARUPPU must complete final security/privacy audit by Week 9
 - KANAKU must finalize pricing and store listings by Week 10
 - UYIR must ensure both platform builds pass CI/CD by Week 9
 - OVIYA must deliver store assets (screenshots, icons) by Week 10
@@ -272,7 +272,7 @@ Project Owner (Yazhi)
 | Model latency >150ms on mobile | ARIVU | MEDIUM | Use INT8/INT4 quantization, benchmark early |
 | ARSetup.cs enum conflicts | VAJRA | MEDIUM | Fix once AR Foundation package version known |
 | OVIYA art spec delays | OVIYA/ANBU | MEDIUM | THOZHAR can build unstyled scenes first |
-| COPPA/DPDP non-compliance | KAAVAL | HIGH | Implement parental consent flow before beta |
+| COPPA/DPDP non-compliance | KARUPPU | HIGH | Implement parental consent flow before beta |
 | Disk space exhaustion on Zorba | UYIR | LOW | Monitor usage, clean build artifacts |
 
 ---

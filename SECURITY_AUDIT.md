@@ -1,5 +1,5 @@
 # SECURITY AUDIT REPORT — Yazh-Unity (YAZH-UNITY)
-**Auditor:** KAAVAL (Security Agent, Rotation 25)
+**Auditor:** KARUPPU (Security Agent, Rotation 25)
 **Date:** 2026-06-17
 **Scope:** GameManager.cs, YazhInferenceManager.cs, ARSetup.cs, LatencyTest.cs, BuildScript.yml
 **Project:** /home/neutron/Yazhi/apps/yazh-unity/
@@ -244,4 +244,4 @@ The Yazh-Unity codebase has a solid zero-cloud foundation with no network calls 
 
 ---
 
-*Audited by KAAVAL | Rotation 25 | 2026-06-17*
+*Audited by KARUPPU | Rotation 25 | 2026-06-17*

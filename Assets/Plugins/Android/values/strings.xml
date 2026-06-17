@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+strings.xml — YAZH-UNITY Android
+KARUPPU | Rotation 25 Cycle 9 | Jun 18, 2026
+Strings for COPPA consent dialog (US COPPA + India DPDP compliance)
+-->
+<resources>
+    <!-- COPPA Consent Dialog -->
+    <string name="coppa_title">Parental Consent Required</string>
+    <string name="coppa_body">Yazh uses your device\'s camera to display an AR pet companion. For children under 13 (US) or under 18 (India), parental or guardian consent is required. Please review what data is collected and how it is used.</string>
+
+    <string name="coppa_data_usage">Data Collection &amp; Usage:</string>
+    <string name="coppa_data_camera">Camera access (required for AR pet display)</string>
+    <string name="coppa_data_local">All processing happens on this device</string>
+    <string name="coppa_data_no_cloud">No data is sent to cloud servers</string>
+
+    <string name="coppa_attestation">Parent/Guardian Attestation:</string>
+    <string name="coppa_parent_checkbox">I am the parent or legal guardian of this child, and I consent to the data practices described above.</string>
+    <string name="coppa_parent_email_hint">Parent/Guardian Email (for consent record)</string>
+    <string name="coppa_email_invalid">Please enter a valid email address</string>
+
+    <string name="coppa_decline">Decline</string>
+    <string name="coppa_accept">Accept &amp; Continue</string>
+</resources>

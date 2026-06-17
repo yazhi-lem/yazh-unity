@@ -286,6 +286,6 @@ private bool VerifyModelHash(string filePath, string modelRelativePath)
 
 ---
 
-**Implemented by:** KAAVAL (Security Agent)  
+**Implemented by:** KARUPPU (Security Agent)  
 **Date:** 2026-06-18  
 **Status:** READY FOR PRODUCTION ✓

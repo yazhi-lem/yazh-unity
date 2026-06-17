@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+colors.xml — YAZH-UNITY Android
+KARUPPU | Rotation 25 Cycle 9 | Jun 18, 2026
+Color palette matching ART_DIRECTION.md (Vahana UI / Tamil-first brutalist)
+-->
+<resources>
+    <!-- Sangam Earth -->
+    <color name="yazhi_deep_red_earth">#8B2500</color>
+    <color name="yazhi_temple_gold">#D4A843</color>
+    <color name="yazhi_palm_leaf_green">#2D5A27</color>
+
+    <!-- Coastal Sky -->
+    <color name="yazhi_monsoon_grey">#6B7B8C</color>
+    <color name="yazhi_lagoon_blue">#3A7CA5</color>
+    <color name="yazhi_night_indigo">#1A1A2E</color>
+
+    <!-- Festival Accents -->
+    <color name="yazhi_marigold_orange">#FF8C00</color>
+    <color name="yazhi_jasmine_white">#FFF8E7</color>
+    <color name="yazhi_kumkum_red">#C41E3A</color>
+</resources>

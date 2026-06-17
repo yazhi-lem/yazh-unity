@@ -1,5 +1,6 @@
 // BiomeArenaController.cs — YAZH-UNITY
 // THOZHAR | Rotation 25 | Jun 17, 2026
+// Cycle 9: Wired UIStyles (Tamil-first brutalist) — Jun 18, 2026
 // Controls the main gameplay scene: AR viewport, dialogue HUD, resource UI
 
 using UnityEngine;
@@ -44,6 +45,9 @@ public class BiomeArenaController : MonoBehaviour
 
     void Start()
     {
+        // Apply Tamil-first brutalist style (Cycle 9)
+        ApplyYazhiStyle();
+
         // Get selected pet from GameManager
         if (GameManager.Instance != null)
         {
@@ -73,6 +77,25 @@ public class BiomeArenaController : MonoBehaviour
         }
 
         UpdateHUD();
+    }
+
+    void ApplyYazhiStyle()
+    {
+        // Cycle 9: Tamil-first styling per ART_DIRECTION.md
+        if (petNameText != null)
+            UIStyles.ApplyTamilBodyStyle(petNameText);
+        UIStyles.ApplyTamilBodyStyle(responseText);
+        UIStyles.ApplyStatBarStyle(healthBar, UIStyles.HealthRed);
+        UIStyles.ApplyStatBarStyle(energyBar, UIStyles.EnergyAmber);
+        UIStyles.ApplyStatBarStyle(hungerBar, UIStyles.HungerGreen);
+        UIStyles.ApplyStatBarStyle(happinessBar, UIStyles.HappinessPurple);
+        UIStyles.ApplyTamilBodyStyle(waterText);
+        UIStyles.ApplyTamilBodyStyle(foodText);
+        UIStyles.ApplyTamilBodyStyle(shelterText);
+        UIStyles.ApplyTamilBodyStyle(herbText);
+        UIStyles.ApplyTamilBodyStyle(weatherText);
+        UIStyles.ApplyTamilBodyStyle(dayText);
+        Debug.Log("[BiomeArena] Tamil-first style applied");
     }
 
     void Update()

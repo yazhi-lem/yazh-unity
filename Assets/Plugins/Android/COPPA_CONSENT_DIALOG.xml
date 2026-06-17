@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+COPPA_CONSENT_DIALOG.xml — YAZH-UNITY Android
+KARUPPU | Rotation 25 Cycle 9 | Jun 18, 2026
+COPPA-compliant parental consent dialog for Android (US + DPDP for India minors).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/yazhi_night_indigo">
+
+    <!-- Title -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_title"
+        android:textColor="@color/yazhi_marigold_orange"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Body -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_body"
+        android:textColor="@color/yazhi_jasmine_white"
+        android:textSize="14sp"
+        android:lineSpacingExtra="4dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Data usage -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_data_usage"
+        android:textColor="@color/yazhi_temple_gold"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="4dp" />
+
+    <CheckBox
+        android:id="@+id/coppa_data_camera"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_data_camera"
+        android:textColor="@color/yazhi_jasmine_white"
+        android:checked="true"
+        android:enabled="false" />
+
+    <CheckBox
+        android:id="@+id/coppa_data_local"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_data_local"
+        android:textColor="@color/yazhi_jasmine_white"
+        android:checked="true"
+        android:enabled="false" />
+
+    <CheckBox
+        android:id="@+id/coppa_data_no_cloud"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_data_no_cloud"
+        android:textColor="@color/yazhi_palm_leaf_green"
+        android:checked="true"
+        android:enabled="false" />
+
+    <!-- Parent attestation -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_attestation"
+        android:textColor="@color/yazhi_kumkum_red"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp" />
+
+    <CheckBox
+        android:id="@+id/coppa_parent_confirm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/coppa_parent_checkbox"
+        android:textColor="@color/yazhi_jasmine_white" />
+
+    <EditText
+        android:id="@+id/coppa_parent_email"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/coppa_parent_email_hint"
+        android:inputType="textEmailAddress"
+        android:textColor="@color/yazhi_jasmine_white"
+        android:textColorHint="@color/yazhi_monsoon_grey"
+        android:backgroundTint="@color/yazhi_temple_gold"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Buttons -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/coppa_decline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/coppa_decline"
+            android:textColor="@color/yazhi_jasmine_white"
+            android:backgroundTint="@color/yazhi_kumkum_red"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/coppa_accept"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/coppa_accept"
+            android:textColor="@color/yazhi_jasmine_white"
+            android:backgroundTint="@color/yazhi_marigold_orange"
+            android:enabled="false" />
+    </LinearLayout>
+
+</LinearLayout>

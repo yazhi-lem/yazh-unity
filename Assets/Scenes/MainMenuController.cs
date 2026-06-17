@@ -1,5 +1,6 @@
 // MainMenuController.cs — YAZH-UNITY
 // THOZHAR | Rotation 25 | Jun 17, 2026
+// Cycle 9: Wired UIStyles (Tamil-first brutalist) — Jun 18, 2026
 // Controls the main menu scene: title, start, settings
 
 using UnityEngine;
@@ -20,6 +21,9 @@ public class MainMenuController : MonoBehaviour
 
     void Start()
     {
+        // Apply Tamil-first brutalist style (Cycle 9)
+        ApplyYazhiStyle();
+
         // Wire buttons
         if (startButton != null)
             startButton.onClick.AddListener(OnStartClicked);
@@ -28,11 +32,17 @@ public class MainMenuController : MonoBehaviour
 
         // Set title
         if (titleText != null)
+        {
             titleText.text = "யாழ்"; // Yazh in Tamil
+            UIStyles.ApplyTamilDisplayStyle(titleText);
+        }
 
         // Hide settings panel
         if (settingsPanel != null)
+        {
             settingsPanel.SetActive(false);
+            UIStyles.ApplyPanelStyle(settingsPanel);
+        }
 
         // Initialize GameManager if not present
         if (GameManager.Instance == null)
@@ -40,6 +50,16 @@ public class MainMenuController : MonoBehaviour
             Debug.Log("[MainMenu] GameManager not found — creating...");
             new GameObject("GameManager").AddComponent<GameManager>();
         }
+    }
+
+    void ApplyYazhiStyle()
+    {
+        // Cycle 9: Apply ART_DIRECTION.md styling to all UI elements
+        UIStyles.ApplyTamilFirstStyle(startButton);
+        UIStyles.ApplyTamilFirstStyle(settingsButton);
+        if (volumeSlider != null)
+            UIStyles.ApplyStatBarStyle(volumeSlider, UIStyles.EnergyAmber);
+        Debug.Log("[MainMenu] Tamil-first style applied");
     }
 
     void OnStartClicked()
