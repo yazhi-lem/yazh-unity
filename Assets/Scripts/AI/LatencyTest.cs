@@ -3,39 +3,68 @@ using Unity.Barracuda;
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Collections.Generic;
 using Debug = UnityEngine.Debug;
 
 /// <summary>
-/// LatencyTest: Standalone benchmark component for Yazh 30K ONNX model.
+/// LatencyTest: Comprehensive benchmark component for Yazh 30K ONNX models.
 /// Attach to any GameObject in the scene to run latency tests on startup.
-/// Measures inference latency across multiple Tamil prompts and reports statistics.
+///
+/// SUPPORTED MODELS (StreamingAssets/MLModels/):
+///   yazh-30k.onnx      — FP32, 10.0 MB — Full precision, highest quality
+///   yazh-30k-int8.onnx  — INT8,  5.0 MB — Quantized, recommended default
+///   yazh-30k-int4.onnx  — INT4,  2.5 MB — Aggressive quant, smallest size
+///
+/// MODEL SPECIFICATION:
+///   Format:        ONNX (Open Neural Network Exchange)
+///   Architecture:  Transformer decoder, ~30M parameters
+///   Vocabulary:    30,000 Tamil BPE tokens (Unicode U+0B80–U+0BFF + subwords)
+///   Context:       256 tokens max
+///   Input shape:   [1, 256] int32 token IDs (left-padded)
+///   Output shape:  [1, 256, 30000] float32 logits
+///   Special tokens: <PAD>=0, <EOS>=2, <UNK>=1
+///
+/// TARGET LATENCY: < 150ms per inference on mobile CPU (ARM Cortex-A76+)
+///
+/// ARIVU — Rotation 25 — Jun 17, 2026
 /// </summary>
 public class LatencyTest : MonoBehaviour
 {
     [Header("Model Configuration")]
+    [Tooltip("Model file name in StreamingAssets/MLModels/")]
     [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.onnx";
-    [SerializeField] private int warmupIterations = 3;
-    [SerializeField] private int benchmarkIterations = 20;
 
-    [Header("Test Prompts (Tamil)")]
+    [Tooltip("Model variant for reporting")]
+    [SerializeField] private ModelVariant modelVariant = ModelVariant.INT8;
+
+    [Header("Benchmark Settings")]
+    [SerializeField] private int warmupIterations = 5;
+    [SerializeField] private int benchmarkIterations = 30;
+    [SerializeField] private int maxResponseTokens = 1;
+
+    [Header("Test Prompts (Tamil — child-appropriate)")]
     [SerializeField] private string[] testPrompts = new string[]
     {
-        "வணக்கம்",
-        "நான் உன்னை நேசிக்கிறேன்",
-        "என் பெயர் குருவி",
-        "மழை பெய்யுது",
-        "கதை சொல்லு",
-        "நாளை என்ன செய்வோம்",
-        "இனிய நாள்",
-        "பறவை பறக்கிறது",
-        "மரம் உயரமாக இருக்கிறது",
-        "நீ எங்கே போகிறாய்"
+        "வணக்கம்",                    // Hello (short)
+        "நான் உன்னை நேசிக்கிறேன்",      // I love you (medium)
+        "என் பெயர் குருவி",            // My name is Kuruvi (medium)
+        "மழை பெய்யுது",               // It's raining (short)
+        "கதை சொல்லு",                 // Tell a story (short)
+        "நாளை என்ன செய்வோம்",         // What shall we do tomorrow? (long)
+        "இனிய நாள்",                   // Have a nice day (short)
+        "பறவை பறக்கிறது",             // The bird flies (medium)
+        "மரம் உயரமாக இருக்கிறது",      // The tree is tall (long)
+        "நீ எங்கே போகிறாய்"            // Where are you going? (medium)
     };
 
     [Header("Reporting")]
     [SerializeField] private bool logToConsole = true;
     [SerializeField] private bool saveResultsToFile = true;
     [SerializeField] private string outputPath = "latency_results.json";
+
+    [Header("Target Thresholds")]
+    [SerializeField] private float targetAvgMs = 150f;
+    [SerializeField] private float targetP95Ms = 300f;
 
     // Results
     private float[] latencies;
@@ -45,12 +74,16 @@ public class LatencyTest : MonoBehaviour
     private float p50Latency;
     private float p90Latency;
     private float p95Latency;
+    private float stdDevLatency;
     private int successCount;
     private string modelInfo;
+    private long modelFileSize;
 
     private Model model;
     private IWorker worker;
     private bool isReady = false;
+
+    public enum ModelVariant { FP32, INT8, INT4 }
 
     private void Start()
     {
@@ -62,7 +95,8 @@ public class LatencyTest : MonoBehaviour
         Stopwatch sw = Stopwatch.StartNew();
 
         Log("===========================================");
-        Log("  YAZH 30K MODEL — LATENCY TEST");
+        Log("  YAZH 30K MODEL — LATENCY BENCHMARK");
+        Log("  ARIVU Rotation 25 | ML Integration");
         Log("===========================================");
 
         // Step 1: Load model
@@ -133,36 +167,52 @@ public class LatencyTest : MonoBehaviour
             p50Latency = GetPercentile(validLatencies, 50);
             p90Latency = GetPercentile(validLatencies, 90);
             p95Latency = GetPercentile(validLatencies, 95);
+
+            // Standard deviation
+            float sumSqDiff = 0f;
+            foreach (float l in validLatencies)
+            {
+                float diff = l - avgLatency;
+                sumSqDiff += diff * diff;
+            }
+            stdDevLatency = (float)Math.Sqrt(sumSqDiff / successCount);
         }
 
         sw.Stop();
 
         // Step 5: Report
-        bool passed = avgLatency < 150f;
-        string verdict = passed ? "PASS" : "FAIL";
+        bool passedAvg = avgLatency < targetAvgMs;
+        bool passedP95 = p95Latency < targetP95Ms;
+        bool passed = passedAvg && passedP95;
+        string verdict = passed ? "PASS ✓" : "FAIL ✗";
 
         Log("\n===========================================");
-        Log("  RESULTS");
+        Log("  BENCHMARK RESULTS");
         Log("===========================================");
-        Log($"  Model:          {modelPath}");
+        Log($"  Model File:     {modelPath}");
+        Log($"  Model Variant:  {modelVariant}");
+        Log($"  Model Size:     {modelFileSize / 1024.0f:F0} KB ({modelFileSize / 1024 / 1024.0f:F1} MB)");
         Log($"  Model Info:     {modelInfo}");
         Log($"  Total Iters:    {benchmarkIterations}");
-        Log($"  Success:        {successCount}/{benchmarkIterations}");
-        Log($"  Min Latency:    {minLatency:F2} ms");
-        Log($"  Avg Latency:    {avgLatency:F2} ms");
-        Log($"  P50 Latency:    {p50Latency:F2} ms");
-        Log($"  P90 Latency:    {p90Latency:F2} ms");
-        Log($"  P95 Latency:    {p95Latency:F2} ms");
-        Log($"  Max Latency:    {maxLatency:F2} ms");
-        Log($"  Target:         < 150 ms");
-        Log($"  Verdict:        {verdict}");
+        Log($"  Warm-up Iters:  {warmupIterations}");
+        Log($"  Success:        {successCount}/{benchmarkIterations} ({(float)successCount / benchmarkIterations * 100:F0}%)");
+        Log($"  ──────────────────────────────────────");
+        Log($"  Min Latency:    {minLatency,8:F2} ms");
+        Log($"  Avg Latency:    {avgLatency,8:F2} ms   (target: <{targetAvgMs}ms)  [{(passedAvg ? "PASS" : "FAIL")}]");
+        Log($"  P50 Latency:    {p50Latency,8:F2} ms");
+        Log($"  P90 Latency:    {p90Latency,8:F2} ms");
+        Log($"  P95 Latency:    {p95Latency,8:F2} ms   (target: <{targetP95Ms}ms)  [{(passedP95 ? "PASS" : "FAIL")}]");
+        Log($"  Max Latency:    {maxLatency,8:F2} ms");
+        Log($"  Std Dev:        {stdDevLatency,8:F2} ms");
+        Log($"  ──────────────────────────────────────");
+        Log($"  Overall:        {verdict}");
         Log($"  Total Time:     {sw.ElapsedMilliseconds} ms");
         Log("===========================================");
 
         // Step 6: Save results
         if (saveResultsToFile)
         {
-            SaveResults(sw.ElapsedMilliseconds);
+            SaveResults(sw.ElapsedMilliseconds, passed, passedAvg, passedP95);
         }
 
         // Cleanup
@@ -183,7 +233,8 @@ public class LatencyTest : MonoBehaviour
             }
 
             byte[] modelData = File.ReadAllBytes(fullPath);
-            Log($"[MODEL] Size: {modelData.Length / 1024.0f:F1} KB");
+            modelFileSize = modelData.Length;
+            Log($"[MODEL] Size: {modelFileSize / 1024.0f:F0} KB ({modelFileSize / 1024 / 1024.0f:F1} MB)");
 
             model = ModelLoader.Load(modelData);
             if (model == null)
@@ -192,10 +243,11 @@ public class LatencyTest : MonoBehaviour
                 return false;
             }
 
+            // Use ComputePrecompiled for best CPU performance on mobile
             worker = WorkerFactory.CreateWorker(WorkerFactory.Type.ComputePrecompiled, model);
             modelInfo = $"Inputs: {model.inputs.Count}, Outputs: {model.outputs.Count}, " +
                         $"Layers: {model.layers.Count}";
-            Log($"[MODEL] Loaded. {modelInfo}");
+            Log($"[MODEL] Loaded successfully. {modelInfo}");
             isReady = true;
             return true;
         }
@@ -244,12 +296,13 @@ public class LatencyTest : MonoBehaviour
     private int[] SimpleTokenize(string text)
     {
         // Simple char-level tokenization for benchmarking
+        // Matches YazhTokenizer.Encode() behavior in YazhInferenceManager.cs
         int[] tokens = new int[text.Length + 1];
         for (int i = 0; i < text.Length; i++)
         {
             tokens[i] = (int)text[i] % 30000;
         }
-        tokens[text.Length] = 2; // EOS
+        tokens[text.Length] = 2; // EOS token
         return tokens;
     }
 
@@ -264,27 +317,36 @@ public class LatencyTest : MonoBehaviour
         return sorted[lower] * (1 - frac) + sorted[upper] * frac;
     }
 
-    private void SaveResults(long totalTimeMs)
+    private void SaveResults(long totalTimeMs, bool passed, bool passedAvg, bool passedP95)
     {
         try
         {
             string results = $@"{{
   ""model"": ""{modelPath}"",
+  ""model_variant"": ""{modelVariant}"",
+  ""model_size_bytes"": {modelFileSize},
   ""model_info"": ""{modelInfo}"",
   ""timestamp"": ""{DateTime.Now:yyyy-MM-dd HH:mm:ss}"",
   ""warmup_iterations"": {warmupIterations},
   ""benchmark_iterations"": {benchmarkIterations},
   ""success_count"": {successCount},
+  ""success_rate"": {(float)successCount / benchmarkIterations * 100:F1},
   ""latency_ms"": {{
     ""min"": {minLatency:F2},
     ""avg"": {avgLatency:F2},
     ""p50"": {p50Latency:F2},
     ""p90"": {p90Latency:F2},
     ""p95"": {p95Latency:F2},
-    ""max"": {maxLatency:F2}
+    ""max"": {maxLatency:F2},
+    ""stddev"": {stdDevLatency:F2}
   }},
-  ""target_ms"": 150,
-  ""passed"": {(avgLatency < 150f ? "true" : "false")},
+  ""targets"": {{
+    ""avg_target_ms"": {targetAvgMs},
+    ""p95_target_ms"": {targetP95Ms},
+    ""avg_passed"": {(passedAvg ? "true" : "false")},
+    ""p95_passed"": {(passedP95 ? "true" : "false")},
+    ""overall_passed"": {(passed ? "true" : "false")}
+  }},
   ""total_time_ms"": {totalTimeMs},
   ""raw_latencies"": [{string.Join(", ", Array.ConvertAll(latencies, x => x >= 0 ? x.ToString("F2") : "\"failed\""))}]
 }}";

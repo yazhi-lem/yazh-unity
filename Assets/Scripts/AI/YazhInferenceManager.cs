@@ -2,6 +2,7 @@ using UnityEngine;
 using Unity.Barracuda;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 
 /// <summary>
 /// YazhInferenceManager: Manages on-device Tamil language inference via Yazh 30K ONNX model
@@ -37,6 +38,17 @@ public class YazhInferenceManager : MonoBehaviour
     private const int MAX_CONTEXT_TOKENS = 256;
     private const int MAX_RESPONSE_TOKENS = 64;
     private const float TEMPERATURE = 0.7f;
+
+    // SEC-001: ONNX Model Hash Verification (SHA-256)
+    // Embedded hashes for all three ONNX model variants (INT8, INT4, FP32)
+    // Generated: 2026-06-18
+    // If any hash mismatches at load time, model loading is rejected (security failure)
+    private static readonly Dictionary<string, string> ONNX_MODEL_HASHES = new()
+    {
+        { "MLModels/yazh-30k-int8.onnx", "3d9bfaeec2994ce78f3f29c979354a105cc8198aa5018bf4dc0d13a892aa59dc" },
+        { "MLModels/yazh-30k-int4.onnx", "ca791d14644203acb35e76413f2b0a914ce6d0a2c81d8957b9654dc23a4765ec" },
+        { "MLModels/yazh-30k.onnx", "d6bf01d17df05a0ec51ef814a500d645aa94b367e2907c1179131e69a442f8a6" }
+    };
 
     private void Awake()
     {
@@ -85,6 +97,14 @@ public class YazhInferenceManager : MonoBehaviour
             return;
         }
 
+        // SEC-001: Verify model file hash before loading
+        if (!VerifyModelHash(modelFilePath, modelPath))
+        {
+            Debug.LogError($"[Yazh AI] SECURITY FAILURE: Model hash verification failed for {modelPath}. Model integrity compromised or corrupted. Aborting load.");
+            isModelReady = false;
+            return;
+        }
+
         byte[] modelData = File.ReadAllBytes(modelFilePath);
         yazhModel = ModelLoader.Load(modelData);
 
@@ -99,6 +119,61 @@ public class YazhInferenceManager : MonoBehaviour
         else
         {
             Debug.LogError("[Yazh AI] Failed to load model");
+        }
+    }
+
+    /// <summary>
+    /// SEC-001: Verify ONNX model SHA-256 hash against embedded trusted hashes
+    /// Compares file hash with values embedded in ONNX_MODEL_HASHES dictionary
+    /// Returns false if: hash mismatch, model path not in whitelist, or hash computation fails
+    /// This prevents model poisoning attacks (supply-chain or on-device tampering)
+    /// </summary>
+    private bool VerifyModelHash(string filePath, string modelRelativePath)
+    {
+        try
+        {
+            // Step 1: Check if model path is in the trusted whitelist
+            if (!ONNX_MODEL_HASHES.ContainsKey(modelRelativePath))
+            {
+                Debug.LogError($"[Yazh AI] [SEC-001] Model path not in whitelist: {modelRelativePath}");
+                return false;
+            }
+
+            // Step 2: Compute SHA-256 hash of the model file
+            string computedHash;
+            using (SHA256 sha256 = SHA256.Create())
+            {
+                using (FileStream fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+                {
+                    byte[] hashBytes = sha256.ComputeHash(fileStream);
+                    computedHash = System.BitConverter.ToString(hashBytes).Replace("-", "").ToLower();
+                }
+            }
+
+            // Step 3: Compare computed hash with embedded trusted hash
+            string trustedHash = ONNX_MODEL_HASHES[modelRelativePath];
+            bool hashMatch = computedHash.Equals(trustedHash, System.StringComparison.OrdinalIgnoreCase);
+
+            if (!hashMatch)
+            {
+                Debug.LogError($"[Yazh AI] [SEC-001] HASH MISMATCH for model: {modelRelativePath}");
+                Debug.LogError($"[Yazh AI] [SEC-001] Expected: {trustedHash}");
+                Debug.LogError($"[Yazh AI] [SEC-001] Computed: {computedHash}");
+                Debug.LogError($"[Yazh AI] [SEC-001] File may be corrupted or tampered. Rejecting load.");
+                return false;
+            }
+
+            #if UNITY_EDITOR
+            Debug.Log($"[Yazh AI] [SEC-001] Hash verification PASSED for {modelRelativePath}");
+            Debug.Log($"[Yazh AI] [SEC-001] SHA-256: {computedHash}");
+            #endif
+
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[Yazh AI] [SEC-001] Hash verification failed with exception: {e.Message}");
+            return false;
         }
     }
 

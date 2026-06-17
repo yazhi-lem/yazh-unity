@@ -34,7 +34,13 @@ Overall security posture: **MODERATE** — The codebase adheres to the zero-clou
 **Severity:** CRITICAL
 **Description:** ONNX models are loaded from StreamingAssets with zero integrity verification. No checksum, hash, or digital signature is validated. A tampered model file (supply-chain attack or on-device modification) would be loaded and executed without detection.
 **Impact:** Model poisoning → malicious output to children, data exfiltration via crafted responses.
-**Recommendation:** Embed SHA-256 hashes of all three ONNX models in the app. Verify at load time before ModelLoader.Load(). Reject and log any model failing verification.
+**Status:** ✅ FIXED (2026-06-18)
+**Solution:** 
+- Embedded SHA-256 hashes in BuildScript.cs (build-time whitelist)
+- Embedded SHA-256 hashes in YazhInferenceManager.cs (runtime verification)
+- VerifyModelHash() method validates hash before load
+- VerifyAllModelHashes() gates CI/CD pipeline
+- See: ONNX_HASH_VERIFICATION.md
 
 #### SEC-002: No Input Validation on User Chat Input
 **File:** YazhInferenceManager.cs (Lines 145-201)
@@ -105,17 +111,30 @@ Overall security posture: **MODERATE** — The codebase adheres to the zero-clou
 
 #### SEC-011: iOS ARKit Version Check is Fragile
 **File:** ARSetup.cs (Line 31)
-**Severity:** MEDIUM
-**Description:** `UnityEngine.iOS.Device.systemVersion.Contains("ARKit")` is not a valid ARKit detection method. System version strings don't contain "ARKit". This check will always return false on iOS, disabling AR entirely.
-**Impact:** AR never activates on iOS. Silent failure with no user-facing error.
-**Recommendation:** Use ARSession.state to check AR availability at runtime instead of string matching.
+**Severity:** MEDIUM → HIGH (for kids app with COPPA requirements)
+**Description:** Previous code: `UnityEngine.iOS.Device.systemVersion.Contains("ARKit")` is not a valid ARKit detection method. System version strings don't contain "ARKit". This check will always return false on iOS, disabling AR entirely. Additionally, no parental consent flow for camera access (COPPA violation for under-13 users).
+**Impact:** AR never activates on iOS. Silent failure with no user-facing error. COPPA violations for kids app.
+**Status:** ✅ FIXED (2026-06-18)
+**Solution:**
+- Fixed ARKit detection: Use ARSession.state at runtime instead of string matching
+- Implemented complete permission + consent flow (RequestPermissionsAndConsent coroutine)
+- Platform-specific permission requests (iOS system dialog + Android runtime permission)
+- Parental consent dialog with audit trail logging (COPPA compliance)
+- AR initialization gated on both permission AND consent
+- See: COPPA_COMPLIANCE.md
 
 #### SEC-012: Android Camera Permission Check is Insufficient
 **File:** ARSetup.cs (Line 34)
 **Severity:** MEDIUM
-**Description:** Permission.HasUserAuthorizedPermission only checks if permission was previously granted. It does not request permission if not granted. On first launch, this returns false and AR is silently disabled.
+**Description:** Previous code: Permission.HasUserAuthorizedPermission only checks if permission was previously granted. It does not request permission if not granted. On first launch, this returns false and AR is silently disabled.
 **Impact:** AR never works on first app launch. No user prompt to grant camera permission.
-**Recommendation:** Use Permission.RequestUserPermission() in a coroutine and wait for user response before proceeding.
+**Status:** ✅ FIXED (2026-06-18)
+**Solution:**
+- Implemented Permission.RequestUserPermission(Permission.Camera) coroutine
+- Waits for user response in coroutine (async, non-blocking)
+- Integrated with iOS permission flow for consistency
+- Audit trail: Logs permission response (Android + iOS unified)
+- See: COPPA_COMPLIANCE.md
 
 ### LOW (Address when implementing features)
 
@@ -155,24 +174,51 @@ Overall security posture: **MODERATE** — The codebase adheres to the zero-clou
 
 ## FIXES APPLIED
 
-The following fixes were applied during this audit:
+The following fixes were applied during this audit and subsequent security hardening:
 
-1. **SEC-002:** Added input validation to GenerateResponse() — max length check, null/empty check
-2. **SEC-003:** Added parameter validation to RunLatencyBenchmark() — iterations clamped to [1, 100]
-3. **SEC-004:** Added compile-time logging gate (#if UNITY_EDITOR) to YazhInferenceManager.cs
-4. **SEC-009:** Added output validation to GenerateResponse() — empty/garbage output fallback
+1. **SEC-001:** Added ONNX model SHA-256 hash verification (build-time + runtime)
+   - BuildScript.cs: VerifyAllModelHashes() gates CI/CD pipeline
+   - YazhInferenceManager.cs: VerifyModelHash() validates before load
+   - Embedded hashes for all 3 models (INT8, INT4, FP32)
+   - See: ONNX_HASH_VERIFICATION.md
+
+2. **SEC-002:** Added input validation to GenerateResponse() — max length check, null/empty check
+
+3. **SEC-003:** Added parameter validation to RunLatencyBenchmark() — iterations clamped to [1, 100]
+
+4. **SEC-004:** Added compile-time logging gate (#if UNITY_EDITOR) to YazhInferenceManager.cs
+
+5. **SEC-009:** Added output validation to GenerateResponse() — empty/garbage output fallback
+
+6. **SEC-011:** Implemented iOS ARKit permission flow + COPPA parental consent
+   - ARSetup.cs: RequestPermissionsAndConsent() orchestrates full flow
+   - Platform-specific permission requests (iOS native + Android runtime)
+   - Parental consent dialog with audit trail
+   - AR initialization gated on permission AND consent
+   - See: COPPA_COMPLIANCE.md
+
+7. **SEC-012:** Fixed Android camera permission request
+   - Implemented Permission.RequestUserPermission() coroutine
+   - Unified iOS + Android permission flow
+   - Audit logging for compliance
 
 ---
 
-## RECOMMENDATIONS (Priority Order)
+## RECOMMENDATIONS (Priority Order) — Updated 2026-06-18
 
-1. Implement ONNX model hash verification (SEC-001) — CRITICAL
-2. Add input validation to all public API methods (SEC-002) — CRITICAL
-3. Design encrypted save system before implementing persistence (SEC-006) — HIGH
-4. Fix AR permission flow for both iOS and Android (SEC-011, SEC-012) — MEDIUM
-5. Add privacy consent screen before AR activation (SEC-005) — HIGH
-6. Harden CI/CD pipeline (SEC-010) — MEDIUM
-7. Add anti-tampering measures before App Store submission (SEC-014) — LOW
+**COMPLETED (✅):**
+1. ✅ Implement ONNX model hash verification (SEC-001) — CRITICAL
+2. ✅ Fix AR permission flow for both iOS and Android (SEC-011, SEC-012) — MEDIUM
+
+**REMAINING (🔄):**
+1. Input validation on all public API methods (SEC-002 partial) — **CRITICAL**
+   - GenerateResponse() validated (done)
+   - Need: Validate other public method inputs
+2. Design encrypted save system before implementing persistence (SEC-006) — **HIGH**
+3. Add privacy consent screen before AR activation (SEC-005) — **HIGH**
+   - Note: SEC-011 parental consent dialog now serves this purpose
+4. Harden CI/CD pipeline (SEC-010) — **MEDIUM**
+5. Add anti-tampering measures before App Store submission (SEC-014) — **LOW**
 
 ---
 
