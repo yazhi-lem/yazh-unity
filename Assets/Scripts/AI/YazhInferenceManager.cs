@@ -91,8 +91,10 @@ public class YazhInferenceManager : MonoBehaviour
         if (yazhModel != null)
         {
             isModelReady = true;
+            #if UNITY_EDITOR
             Debug.Log($"[Yazh AI] Model loaded successfully. Inputs: {yazhModel.inputs.Count}, Outputs: {yazhModel.outputs.Count}");
             Debug.Log($"[Yazh AI] Model memory: ~{EstimateModelSize(yazhModel) / 1024 / 1024:F1}MB");
+            #endif
         }
         else
         {
@@ -138,6 +140,8 @@ public class YazhInferenceManager : MonoBehaviour
         Debug.Log("[Yazh AI] Tokenizer loaded, vocab size: 30000");
     }
 
+    private const int MAX_INPUT_LENGTH = 512;  // Max chars for child input
+
     /// <summary>
     /// Run inference on user input (child's chat message)
     /// Returns Tamil text response from Yazh 30K model
@@ -151,6 +155,22 @@ public class YazhInferenceManager : MonoBehaviour
             return;
         }
 
+        // SEC-002: Input validation — null/empty check
+        if (string.IsNullOrWhiteSpace(userInput))
+        {
+            onResponseReady?.Invoke("ஏதாவது சொல்லுங்கள். (Please say something.)");
+            return;
+        }
+
+        // SEC-002: Input validation — length limit
+        if (userInput.Length > MAX_INPUT_LENGTH)
+        {
+            #if UNITY_EDITOR
+            Debug.LogWarning($"[Yazh AI] Input truncated from {userInput.Length} to {MAX_INPUT_LENGTH} chars");
+            #endif
+            userInput = userInput.Substring(0, MAX_INPUT_LENGTH);
+        }
+
         StartCoroutine(GenerateResponseCoroutine(userInput, onResponseReady));
     }
 
@@ -160,7 +180,9 @@ public class YazhInferenceManager : MonoBehaviour
 
         // 1. Tokenize input (Tamil)
         int[] inputTokens = tokenizer.Encode(userInput);
-        Debug.Log($"[Yazh AI] Input tokens: {inputTokens.Length} ({string.Join(",", inputTokens)})");
+        #if UNITY_EDITOR
+        Debug.Log($"[Yazh AI] Input tokens: {inputTokens.Length}");
+        #endif
 
         // 2. Prepare input tensor
         Tensor inputTensor = CreateInputTensor(inputTokens);
@@ -177,8 +199,16 @@ public class YazhInferenceManager : MonoBehaviour
         // 6. Decode back to Tamil text
         string response = tokenizer.Decode(new int[] { nextToken });
 
+        // SEC-009: Output validation — check for empty/garbage output
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            response = "மன்னிக்கவும், புரியவில்லை. (Sorry, I didn't understand.)";
+        }
+
         float inferenceLatency = (Time.realtimeSinceStartup - startTime) * 1000f;  // ms
+        #if UNITY_EDITOR
         Debug.Log($"[Yazh AI] Inference latency: {inferenceLatency:F1}ms");
+        #endif
 
         // Update latency stats
         inferenceCount++;
@@ -267,6 +297,10 @@ public class YazhInferenceManager : MonoBehaviour
     /// </summary>
     public string RunLatencyBenchmark(int iterations = 10)
     {
+        // SEC-003: Clamp iterations to sane range
+        if (iterations < 1) iterations = 1;
+        if (iterations > 100) iterations = 100;
+
         if (!isModelReady)
         {
             return "[Yazh AI] Benchmark failed: model not loaded.";
