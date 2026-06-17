@@ -12,10 +12,16 @@ public class YazhInferenceManager : MonoBehaviour
 {
     public static YazhInferenceManager Instance { get; private set; }
 
-    [SerializeField] private string modelPath = "MLModels/yazh-30k-quantized.onnx";
+    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.onnx";
     [SerializeField] private string tokenizerPath = "MLModels/yazh-tokenizer.json";
     [SerializeField] private float inferenceTimeout = 0.5f;  // 500ms max (target 150ms)
     [SerializeField] private bool enableProfiling = true;
+
+    // Latency tracking
+    private float totalInferenceTime = 0f;
+    private int inferenceCount = 0;
+    private float minLatency = float.MaxValue;
+    private float maxLatency = 0f;
 
     private Model yazhModel;
     private IWorker inferenceWorker;
@@ -63,6 +69,9 @@ public class YazhInferenceManager : MonoBehaviour
             // For production: use GPU if available; fall back to CPU
             inferenceWorker = WorkerFactory.CreateWorker(WorkerFactory.Type.ComputePrecompiled, yazhModel);
             Debug.Log("[Yazh AI] Inference worker initialized");
+
+            // Run warm-up inference to prime the model
+            WarmupInference();
         }
     }
 
@@ -88,6 +97,26 @@ public class YazhInferenceManager : MonoBehaviour
         else
         {
             Debug.LogError("[Yazh AI] Failed to load model");
+        }
+    }
+
+    private void WarmupInference()
+    {
+        // Run a dummy inference to warm up the model (first call is always slower)
+        try
+        {
+            float warmupStart = Time.realtimeSinceStartup;
+            int[] dummyTokens = new int[] { 1, 2, 3, 4, 5 };
+            Tensor warmupTensor = CreateInputTensor(dummyTokens);
+            inferenceWorker.Execute(warmupTensor);
+            Tensor warmupOutput = inferenceWorker.PeekOutput();
+            warmupTensor.Dispose();
+            float warmupTime = (Time.realtimeSinceStartup - warmupStart) * 1000f;
+            Debug.Log($"[Yazh AI] Warm-up inference: {warmupTime:F1}ms");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[Yazh AI] Warm-up failed: {e.Message}");
         }
     }
 
@@ -151,7 +180,17 @@ public class YazhInferenceManager : MonoBehaviour
         float inferenceLatency = (Time.realtimeSinceStartup - startTime) * 1000f;  // ms
         Debug.Log($"[Yazh AI] Inference latency: {inferenceLatency:F1}ms");
 
+        // Update latency stats
+        inferenceCount++;
+        totalInferenceTime += inferenceLatency;
+        if (inferenceLatency < minLatency) minLatency = inferenceLatency;
+        if (inferenceLatency > maxLatency) maxLatency = inferenceLatency;
+
         RecordMetric("last_inference_latency", inferenceLatency);
+        RecordMetric("avg_inference_latency", totalInferenceTime / inferenceCount);
+        RecordMetric("min_inference_latency", minLatency);
+        RecordMetric("max_inference_latency", maxLatency);
+        RecordMetric("inference_count", (float)inferenceCount);
 
         inputTensor.Dispose();
 
@@ -221,6 +260,90 @@ public class YazhInferenceManager : MonoBehaviour
     }
 
     public Dictionary<string, float> GetPerformanceMetrics() => performanceMetrics;
+
+    /// <summary>
+    /// Run a latency benchmark with multiple Tamil prompts.
+    /// Returns a formatted report string with min/max/avg latency.
+    /// </summary>
+    public string RunLatencyBenchmark(int iterations = 10)
+    {
+        if (!isModelReady)
+        {
+            return "[Yazh AI] Benchmark failed: model not loaded.";
+        }
+
+        // Tamil test prompts (child-appropriate)
+        string[] testPrompts = new string[]
+        {
+            "வணக்கம்",                    // Hello
+            "நான் உன்னை நேசிக்கிறேன்",      // I love you
+            "என் பெயர் குருவி",            // My name is Kuruvi
+            "மழை பெய்யுது",               // It's raining
+            "கதை சொல்லு",                 // Tell a story
+            "நாளை என்ன செய்வோம்",         // What shall we do tomorrow?
+            "இனிய நாள்",                   // Have a nice day
+            "பறவை பறக்கிறது",             // The bird flies
+            "மரம் உயரமாக இருக்கிறது",      // The tree is tall
+            "நீ எங்கே போகிறாய்"            // Where are you going?
+        };
+
+        // Reset stats for clean benchmark
+        float benchTotal = 0f;
+        float benchMin = float.MaxValue;
+        float benchMax = 0f;
+        int successCount = 0;
+
+        Debug.Log("========================================");
+        Debug.Log("[Yazh AI] LATENCY BENCHMARK START");
+        Debug.Log($"[Yazh AI] Iterations: {iterations} | Model: {modelPath}");
+        Debug.Log("========================================");
+
+        for (int i = 0; i < iterations; i++)
+        {
+            string prompt = testPrompts[i % testPrompts.Length];
+            float iterStart = Time.realtimeSinceStartup;
+
+            try
+            {
+                int[] tokens = tokenizer.Encode(prompt);
+                Tensor input = CreateInputTensor(tokens);
+                inferenceWorker.Execute(input);
+                Tensor output = inferenceWorker.PeekOutput();
+                int nextToken = SampleNextToken(output, TEMPERATURE);
+                tokenizer.Decode(new int[] { nextToken });
+                input.Dispose();
+
+                float iterLatency = (Time.realtimeSinceStartup - iterStart) * 1000f;
+                benchTotal += iterLatency;
+                if (iterLatency < benchMin) benchMin = iterLatency;
+                if (iterLatency > benchMax) benchMax = iterLatency;
+                successCount++;
+
+                Debug.Log($"  [Bench {i + 1}/{iterations}] {iterLatency:F1}ms — \"{prompt}\"");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"  [Bench {i + 1}/{iterations}] FAILED: {e.Message}");
+            }
+        }
+
+        float benchAvg = successCount > 0 ? benchTotal / successCount : 0f;
+        string report = $"Yazh 30K Benchmark: {successCount}/{iterations} success | " +
+                        $"Min: {benchMin:F1}ms | Avg: {benchAvg:F1}ms | Max: {benchMax:F1}ms | " +
+                        $"Target: <150ms | {(benchAvg < 150f ? "PASS" : "FAIL")}";
+
+        Debug.Log("========================================");
+        Debug.Log($"[Yazh AI] {report}");
+        Debug.Log("========================================");
+
+        // Store in metrics
+        RecordMetric("benchmark_min_ms", benchMin);
+        RecordMetric("benchmark_avg_ms", benchAvg);
+        RecordMetric("benchmark_max_ms", benchMax);
+        RecordMetric("benchmark_success_rate", (float)successCount / iterations * 100f);
+
+        return report;
+    }
 
     private void OnDestroy()
     {

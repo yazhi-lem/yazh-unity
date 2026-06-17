@@ -1,0 +1,231 @@
+═══════════════════════════════════════════════════════════════════════════════
+                      YAZH-UNITY: ARCHITECTURE AUDIT
+                      VAJRA — Tech Lead, Rotation 25
+                      Date: 2026-06-17
+═══════════════════════════════════════════════════════════════════════════════
+
+1. EXECUTIVE SUMMARY
+─────────────────────
+YAZH-UNITY is a Unity 6 LTS XR pet game for kids (ages 6-14, Tamil-first,
+on-device AI). The project has a solid foundation: 5 commits, ~1,611 lines
+of C# across 3 scripts, 3 ONNX model variants deployed (FP32/INT8/INT4),
+and a tokenizer. This audit documents what exists, what's missing, and the
+risks that must be addressed before Week 1 vertical slice.
+
+2. WHAT EXISTS (VERIFIED)
+──────────────────────────
+
+  2.1 Repository
+  ├── 5 commits on main (Zorba local, no remote push)
+  ├── .gitignore present
+  └── Clean commit history, descriptive messages
+
+  2.2 C# Scripts (1,611 total lines)
+  ├── Assets/Scripts/Core/GameManager.cs (428 lines)
+  │   ├── GameState enum (7 states: MainMenu, PetSelection, BiomeActive,
+  │   │   PetChat, Paused, GameOver, Settings)
+  │   ├── Singleton pattern with DontDestroyOnLoad
+  │   ├── Pet class (stats: Health, Energy, Hunger, Happiness)
+  │   ├── PetPersonality enum (Curious, Thoughtful, Wise, Playful)
+  │   ├── BiomeController (AR plane integration, resource spawning)
+  │   ├── WeatherSystem (4 conditions, stat modifiers)
+  │   ├── Resource/ResourceType (Water, Food, Shelter, Herb)
+  │   └── 7-day survival loop with EndDay/CompleteChallenge
+  │
+  ├── Assets/Scripts/AI/YazhInferenceManager.cs (315 lines)
+  │   ├── ONNX model loader (StreamingAssets/MLModels/)
+  │   ├── Barracuda IWorker initialization (ComputePrecompiled)
+  │   ├── YazhTokenizer (Tamil Unicode U+0B80-0BFF, 30K vocab)
+  │   ├── Inference pipeline (tokenize → tensor → execute → sample → decode)
+  │   ├── Performance profiling (latency tracking)
+  │   └── Callback-based response handling
+  │
+  └── Assets/Scripts/AR/ARSetup.cs (129 lines)
+      ├── AR session lifecycle management
+      ├── Platform detection (iOS ARKit / Android ARCore)
+      ├── Plane detection (horizontal/vertical/both)
+      ├── Light estimation (ambient intensity)
+      ├── Human segmentation occlusion (CPU)
+      └── ARSessionState monitoring
+
+  2.3 ML Models Deployed (StreamingAssets/MLModels/)
+  ├── yazh-30k.onnx       (10 MB, FP32)
+  ├── yazh-30k-int8.onnx  (5.0 MB, INT8 quantized)
+  ├── yazh-30k-int4.onnx  (2.5 MB, INT4 quantized)
+  └── yazh-tokenizer.json (220 bytes)
+
+  2.4 Build & Config
+  ├── build-yazh.sh (iOS/Android build script)
+  ├── ProjectSettings.json (engine config)
+  ├── README.md, DEPLOY.md, COMPLETION_SUMMARY.md, CHECKLIST.md
+  └── .gitignore
+
+3. WHAT IS MISSING
+───────────────────
+
+  3.1 CRITICAL (Blocks vertical slice)
+  ├── ❌ No Unity scenes (MainMenu.unity, PetSelection.unity, BiomeArena.unity)
+  │   → GameManager references scene transitions but scenes don't exist
+  ├── ❌ No BuildScript class (build-yazh.sh calls BuildScript.BuildiOS/BuildAndroid)
+  │   → Build script will fail at runtime
+  ├── ❌ No ResourceManager class (GameManager declares it, never defined)
+  │   → Compilation error
+  ├── ❌ No ARLightEstimationManager in ARSetup.cs
+  │   → Uses undefined type; ARFoundation has ARCameraManager for light estimation
+  ├── ❌ ARSetup defines local enums (DetectionMode, LightEstimationMode,
+  │   OcclusionPreferenceMode) that shadow AR Foundation's built-in enums
+  │   → Compilation errors on real Unity project
+  └── ❌ No asmdef files (Assembly Definition files for compilation boundaries)
+      → All scripts in default assembly; no modular compilation
+
+  3.2 HIGH (Blocks Week 2-4 milestones)
+  ├── ❌ No UI scripts (dialogue HUD, pet status display, settings)
+  ├── ❌ No audio manager (TTS integration, ambient soundscapes)
+  ├── ❌ No save/load system (PlayerPrefs or JSON serialization)
+  ├── ❌ No input manager (touch/gesture for AR interaction)
+  ├── ❌ No animation controller (Mecanim state machine for pets)
+  ├── ❌ No 3D models or prefabs (all empty directories)
+  ├── ❌ No Tamil font assets (required for Tamil UI rendering)
+  └── ❌ No STT (Speech-to-Text) integration for voice input
+
+  3.3 MEDIUM (Blocks Week 5-8 expansion)
+  ├── ❌ No achievement system
+  ├── ❌ No analytics/telemetry (session tracking beyond Debug.Log)
+  ├── ❌ No localization framework (Tamil + English fallback)
+  ├── ❌ No NPC system
+  ├── ❌ No dialogue tree system (hardcoded responses only)
+  └── ❌ No biome-specific resource tables (only SangamKaadu implemented)
+
+  3.4 LOW (Polish & ship)
+  ├── ❌ No unit tests (EditMode or PlayMode)
+  ├── ❌ No performance profiling markers (Unity Profiler integration)
+  ├── ❌ No CI/CD pipeline (no automated builds)
+  ├── ❌ No code style enforcement (.editorconfig, dotnet format)
+  └── ❌ No dependency management manifest (packages/manifest.json missing)
+
+4. ARCHITECTURE RISKS
+──────────────────────
+
+  RISK 1: Barracuda ONNX Compatibility [HIGH]
+  ─────────────────────────────────────────────
+  Issue: Barracuda has limited operator support. The Yazh 30K model may use
+  ops not supported by Barracuda (e.g., certain attention patterns, custom
+  layers). No validation has been done.
+  Mitigation: Test model loading on target device immediately. Have a
+  fallback plan (e.g., Unity Sentis, which supersedes Barracuda in newer
+  Unity versions).
+
+  RISK 2: Model Size vs. Mobile Memory [HIGH]
+  ────────────────────────────────────────────
+  Issue: Even INT4 model is 2.5MB. FP32 is 10MB. Mobile devices (especially
+  older Android phones in target market) may have memory pressure.
+  Mitigation: Use INT4 for production. Profile memory on target devices.
+  Consider model streaming from device storage rather than bundling.
+
+  RISK 3: Inference Latency on Mobile CPU [HIGH]
+  ───────────────────────────────────────────────
+  Issue: Target is <150ms. Barracuda ComputePrecompiled on mobile CPU may
+  not achieve this for a 30K-parameter model. No benchmarking done yet.
+  Mitigation: Benchmark on actual hardware. Consider GPU worker if available.
+  Reduce context length or model size if needed.
+
+  RISK 4: AR Foundation Version Compatibility [MEDIUM]
+  ────────────────────────────────────────────────────
+  Issue: ARSetup.cs defines local enums that shadow AR Foundation enums.
+  This will cause compilation errors in a real Unity project.
+  Mitigation: Remove local enums, use UnityEngine.XR.ARFoundation enums
+  directly. Test with actual AR Foundation package installed.
+
+  RISK 5: Singleton Pattern Without Thread Safety [MEDIUM]
+  ───────────────────────────────────────────────────────
+  Issue: GameManager and YazhInferenceManager both use singleton pattern
+  but don't handle edge cases (multiple instances, scene reloads).
+  Mitigation: Add proper null checks. Consider ScriptableObject-based
+  service locator for testability.
+
+  RISK 6: No Error Recovery in Inference Pipeline [MEDIUM]
+  ───────────────────────────────────────────────────────
+  Issue: If model loading fails, the app has no graceful degradation.
+  Children will see a broken experience.
+  Mitigation: Add fallback responses (pre-cached Tamil phrases). Show
+  friendly error message in Tamil.
+
+  RISK 7: Missing BuildScript Class [CRITICAL]
+  ────────────────────────────────────────────
+  Issue: build-yazh.sh references BuildScript.BuildiOS and
+  BuildScript.BuildAndroid, but no BuildScript.cs exists.
+  Mitigation: Create BuildScript.cs in Assets/Scripts/Core/ or
+  Assets/Editor/ with static build methods.
+
+  RISK 8: No CI/CD Pipeline [MEDIUM]
+  ──────────────────────────────────
+  Issue: No automated builds, tests, or deployment. All builds are manual.
+  Mitigation: Set up GitHub Actions or local build automation (this task).
+
+5. CODE QUALITY OBSERVATIONS
+─────────────────────────────
+
+  Strengths:
+  + Clean singleton implementation with proper cleanup
+  + Good separation of concerns (Core, AI, AR)
+  + Comprehensive logging throughout
+  + Tamil-first design (Unicode range, tokenizer, UI strings)
+  + Performance profiling built into inference pipeline
+  + Weather system has gameplay impact (not just visual)
+
+  Weaknesses:
+  - No XML documentation on public APIs (only summary blocks)
+  - No interface abstractions (everything is concrete classes)
+  - No dependency injection (hard to unit test)
+  - Magic numbers everywhere (stat decay rates, weather cycle time)
+  - No constants file for configuration values
+  - BiomeController only implements SangamKaadu (other biomes are TODO)
+  - Tokenizer is character-level, not true BPE (quality concern)
+  - Inference uses greedy decoding (no sampling diversity)
+
+6. RECOMMENDATIONS (PRIORITIZED)
+─────────────────────────────────
+
+  P0 — Do This Week:
+  1. Create BuildScript.cs (unblock build pipeline)
+  2. Fix ARSetup.cs enum conflicts (use AR Foundation enums)
+  3. Create placeholder scenes (MainMenu, PetSelection, BiomeArena)
+  4. Define ResourceManager class (fix compilation error)
+  5. Set up CI/CD (GitHub Actions or local automation)
+
+  P1 — Do Before Week 2:
+  6. Add asmdef files for compilation boundaries
+  7. Create configuration constants file
+  8. Implement save/load system (JSON-based)
+  9. Add Tamil font asset (Noto Sans Tamil or similar)
+  10. Create UI manager stub
+
+  P2 — Do Before Week 5:
+  11. Implement proper BPE tokenizer
+  12. Add top-k / nucleus sampling to inference
+  13. Create dialogue tree system
+  14. Add analytics/telemetry
+  15. Write unit tests for GameManager state machine
+
+7. CONCLUSION
+──────────────
+The YAZH-UNITY foundation is solid for a 5-commit prototype. The core
+architecture (GameManager state machine, Barracuda inference, AR setup)
+is well-structured and demonstrates good separation of concerns. The
+critical gaps are: missing Unity scenes, missing BuildScript class, enum
+conflicts in ARSetup, and no CI/CD pipeline. These are all fixable within
+the current sprint. The highest technical risk is Barracuda model
+compatibility — this must be validated on actual hardware immediately.
+
+  Overall Architecture Score: 6.5/10
+  ├── Code Quality:     7/10
+  ├── Completeness:     4/10
+  ├── Documentation:    9/10
+  ├── Build Pipeline:   3/10
+  └── Test Coverage:    0/10
+
+═══════════════════════════════════════════════════════════════════════════════
+  Audited by: VAJRA (Tech Lead, Rotation 25)
+  Date: 2026-06-17
+  Format: .yz (Yazhi standard)
+═══════════════════════════════════════════════════════════════════════════════

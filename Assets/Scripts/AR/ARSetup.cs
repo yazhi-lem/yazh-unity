@@ -11,11 +11,10 @@ public class ARSetup : MonoBehaviour
     [SerializeField] private ARCameraManager arCameraManager;
     [SerializeField] private ARPlaneManager arPlaneManager;
     [SerializeField] private AROcclusionManager arOcclusionManager;
-    [SerializeField] private ARLightEstimationManager arLightEstimationManager;
 
     [SerializeField] private bool enablePlaneDetection = true;
     [SerializeField] private bool enableLightEstimation = true;
-    [SerializeField] private DetectionMode planeDetectionMode = DetectionMode.Horizontal;
+    [SerializeField] private UnityEngine.XR.ARFoundation.ARPlaneDetectionMode planeDetectionMode = UnityEngine.XR.ARFoundation.ARPlaneDetectionMode.Horizontal;
 
     private bool isARSupported = false;
 
@@ -51,20 +50,21 @@ public class ARSetup : MonoBehaviour
         // Configure AR components
         if (arPlaneManager != null)
         {
-            arPlaneManager.detectionMode = enablePlaneDetection ? planeDetectionMode : DetectionMode.None;
+            arPlaneManager.detectionMode = enablePlaneDetection ? planeDetectionMode : UnityEngine.XR.ARFoundation.ARPlaneDetectionMode.None;
             Debug.Log($"[AR] Plane detection: {planeDetectionMode}");
         }
 
-        if (arLightEstimationManager != null)
+        if (arCameraManager != null && enableLightEstimation)
         {
-            arLightEstimationManager.lightEstimationMode = enableLightEstimation ?
-                LightEstimationMode.AmbientIntensity : LightEstimationMode.Disabled;
-            Debug.Log("[AR] Light estimation enabled");
+            // Light estimation via ARCameraManager (AR Foundation 5+)
+            arCameraManager.requestedLightEstimation = UnityEngine.XR.ARFoundation.LightEstimationMode.AmbientIntensity;
+            Debug.Log("[AR] Light estimation enabled (AmbientIntensity)");
         }
 
         if (arOcclusionManager != null)
         {
-            arOcclusionManager.requestedOcclusionPreferenceMode = OcclusionPreferenceMode.PreferUsingHumanSegmentationCPU;
+            arOcclusionManager.requestedOcclusionPreferenceMode =
+                UnityEngine.XR.ARFoundation.OcclusionPreferenceMode.PreferHumanOcclusion;
             Debug.Log("[AR] Occlusion (human segmentation) enabled");
         }
 
@@ -104,25 +104,10 @@ public class ARSetup : MonoBehaviour
     }
 }
 
-public enum DetectionMode
-{
-    None = 0,
-    Horizontal = 1,
-    Vertical = 2,
-    HorizontalAndVertical = 3
-}
-
-public enum LightEstimationMode
-{
-    Disabled = 0,
-    AmbientIntensity = 1,
-    AmbientColor = 2,
-    AmbientColorAndDirectionalLight = 3
-}
-
-public enum OcclusionPreferenceMode
-{
-    PreferUsingGPU = 0,
-    PreferUsingCPU = 1,
-    PreferUsingHumanSegmentationCPU = 2
-}
+// NOTE: AR Foundation provides these enums natively:
+//   UnityEngine.XR.ARFoundation.ARPlaneDetectionMode
+//   UnityEngine.XR.ARFoundation.LightEstimationMode
+//   UnityEngine.XR.ARFoundation.OcclusionPreferenceMode
+// The local enum definitions below are removed to avoid compilation conflicts.
+// ARSetup.cs now uses the AR Foundation enums directly.
+// See: https://docs.unity3d.com/Packages/com.unity.xr.arfoundation@latest
