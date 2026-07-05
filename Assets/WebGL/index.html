@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yazhi - Sovereign Dashboard</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+    <!-- Floating Three-Mark Logo -->
+    <div class="logo-float">
+        <svg viewBox="0 0 100 100" class="yazhi-logo">
+            <!-- Adhan (Tamil) -->
+            <circle cx="30" cy="30" r="8" fill="#d4a574" stroke="#2d2d2d" stroke-width="1.5"/>
+            <!-- Yazh (XR) -->
+            <circle cx="70" cy="30" r="8" fill="#4a9d6f" stroke="#2d2d2d" stroke-width="1.5"/>
+            <!-- Capitol (Auth) -->
+            <circle cx="50" cy="70" r="8" fill="#2d2d2d" stroke="#2d2d2d" stroke-width="1.5"/>
+            
+            <!-- P2P Mesh Connections -->
+            <line x1="30" y1="30" x2="70" y2="30" stroke="#2d2d2d" stroke-width="1.5" opacity="0.4"/>
+            <line x1="30" y1="30" x2="50" y2="70" stroke="#2d2d2d" stroke-width="1.5" opacity="0.4"/>
+            <line x1="70" y1="30" x2="50" y2="70" stroke="#2d2d2d" stroke-width="1.5" opacity="0.4"/>
+        </svg>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Yazhi</h1>
+            <p class="tagline">Sovereignty · Intelligence · Tamil First</p>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="main-grid">
+            <!-- LEFT: Landscapes and Stories -->
+            <aside class="panel landscapes-panel">
+                <h2 class="panel-title">Landscapes</h2>
+                
+                <div class="landscapes-grid">
+                    <!-- Adhan (Tamil LLM) -->
+                    <div class="landscape-card adhan" data-landscape="adhan">
+                        <div class="card-icon">🧠</div>
+                        <div class="card-content">
+                            <h3>Adhan</h3>
+                            <p>Tamil Language Model</p>
+                            <span class="badge">Training</span>
+                        </div>
+                    </div>
+
+                    <!-- Yazh (XR Pet) -->
+                    <div class="landscape-card yazh" data-landscape="yazh">
+                        <div class="card-icon">🎮</div>
+                        <div class="card-content">
+                            <h3>Yazh</h3>
+                            <p>Pet XR Companion (6–14)</p>
+                            <span class="badge">Production</span>
+                        </div>
+                    </div>
+
+                    <!-- Capitol (Auth + Mesh) -->
+                    <div class="landscape-card capitol" data-landscape="capitol">
+                        <div class="card-icon">🔐</div>
+                        <div class="card-content">
+                            <h3>Capitol</h3>
+                            <p>Identity & Mesh Commons</p>
+                            <span class="badge">Core</span>
+                        </div>
+                    </div>
+
+                    <!-- Lion (Comms Layer) -->
+                    <div class="landscape-card lion" data-landscape="lion">
+                        <div class="card-icon">📡</div>
+                        <div class="card-content">
+                            <h3>Lion</h3>
+                            <p>Mesh Communications</p>
+                            <span class="badge">Prototype</span>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="divider">
+                <h2 class="panel-title">Stories</h2>
+
+                <div class="stories-feed">
+                    <div class="story" data-date="2026-06-13">
+                        <div class="story-header">
+                            <span class="story-time">Today</span>
+                            <span class="story-type update">Update</span>
+                        </div>
+                        <p class="story-text">Yazh production pipeline optimized. Unity WebGL target added to build system.</p>
+                    </div>
+
+                    <div class="story" data-date="2026-06-12">
+                        <div class="story-header">
+                            <span class="story-time">Yesterday</span>
+                            <span class="story-type build">Build</span>
+                        </div>
+                        <p class="story-text">Adhan inference engine tuned for RPi5. Barracuda ONNX runtime integration complete.</p>
+                    </div>
+
+                    <div class="story" data-date="2026-06-11">
+                        <div class="story-header">
+                            <span class="story-time">Jun 11</span>
+                            <span class="story-type deploy">Deploy</span>
+                        </div>
+                        <p class="story-text">Capitol mesh authentication layer deployed. Yazh onboarding flow tested on iOS simulator.</p>
+                    </div>
+
+                    <div class="story" data-date="2026-06-10">
+                        <div class="story-header">
+                            <span class="story-time">Jun 10</span>
+                            <span class="story-type milestone">Milestone</span>
+                        </div>
+                        <p class="story-text">Wrote Yazh production spec (12-week timeline, 8 roles, 66 assets). All landscapes integrated.</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- RIGHT: Conversational Agent Chat -->
+            <main class="panel chat-panel">
+                <div class="chat-header">
+                    <h2>Agent</h2>
+                    <div class="agent-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">online</span>
+                    </div>
+                </div>
+
+                <div class="chat-container">
+                    <div class="chat-messages" id="chatMessages">
+                        <!-- Messages will be injected here -->
+                    </div>
+                </div>
+
+                <div class="chat-input-box">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        class="chat-input" 
+                        placeholder="Ask about landscapes, missions, or strategy…"
+                        autocomplete="off"
+                    >
+                    <button id="sendBtn" class="chat-send" aria-label="Send message">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2.5 3l15 7-15 7V10.5z"/>
+                        </svg>
+                    </button>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="assets/app.js"></script>
+</body>
+</html>

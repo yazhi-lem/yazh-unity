@@ -1,0 +1,65 @@
+{
+  "resources": {
+    "water": {
+      "name": "தண்ணீர்",
+      "maxCapacity": 5,
+      "dailyLoss": 1,
+      "sources": ["well", "river", "rain"]
+    },
+    "food": {
+      "name": "உணவு",
+      "maxCapacity": 10,
+      "dailyLoss": 2,
+      "sources": ["tree_fruit", "npc_trade", "hunt"]
+    },
+    "shelter": {
+      "name": "குடிசை",
+      "maxDurability": 100,
+      "decayPerDay": 2,
+      "repairCost": {
+        "stones": 10,
+        "wood": 5
+      }
+    }
+  },
+  "weather": {
+    "cycles": ["sunny", "cloudy", "rainy", "stormy"],
+    "durationMin": 30,
+    "durationMax": 120,
+    "impactOnResources": {
+      "rainy": {
+        "water": 2,
+        "food": -1
+      },
+      "stormy": {
+        "shelter_durability": -10
+      }
+    }
+  },
+  "difficulty": {
+    "easy": {
+      "resourceScarcity": 0.5,
+      "challengeFrequency": 0.3,
+      "hint_frequency": "high"
+    },
+    "medium": {
+      "resourceScarcity": 1.0,
+      "challengeFrequency": 0.6,
+      "hint_frequency": "medium"
+    },
+    "hard": {
+      "resourceScarcity": 1.5,
+      "challengeFrequency": 1.0,
+      "hint_frequency": "low"
+    }
+  },
+  "challenge": {
+    "duration_days": 7,
+    "phase1_days": [1, 2, 3],
+    "phase1_description": "Learning - Pet teaches survival",
+    "phase2_days": [4, 5, 6],
+    "phase2_description": "Challenge - Difficulty ramps",
+    "phase3_days": [7],
+    "phase3_description": "Boss challenge - Combines all lessons"
+  }
+}

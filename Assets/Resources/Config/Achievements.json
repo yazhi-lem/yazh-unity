@@ -1,0 +1,45 @@
+{
+  "achievements": [
+    {
+      "id": "vocab_100",
+      "name": "சொல் சேகர",
+      "englishName": "WordHoarder",
+      "description": "Learn 100 Tamil words",
+      "icon": "badge_words",
+      "reward": "unlock_new_pet_color",
+      "tierProgression": [100, 250, 500]
+    },
+    {
+      "id": "explore_all_biomes",
+      "name": "போக்கு தூரன்",
+      "englishName": "WandererComplete",
+      "description": "Visit all 4 biomes",
+      "icon": "badge_explore",
+      "reward": "unlock_new_biome"
+    },
+    {
+      "id": "survive_7_days",
+      "name": "வாழ்க்கை வல்லுனர்",
+      "englishName": "SurvivalMaster",
+      "description": "Complete 7-day challenge",
+      "icon": "badge_survival",
+      "reward": "unlock_pet_ability"
+    },
+    {
+      "id": "conversations_50",
+      "name": "உரையாடல் மூஸ்தரு",
+      "englishName": "Conversationalist",
+      "description": "Have 50 conversations",
+      "icon": "badge_chat",
+      "reward": "unlock_cosmetic_hat"
+    },
+    {
+      "id": "compassion_10",
+      "name": "கருணை சிறுவன்",
+      "englishName": "Compassionate",
+      "description": "Choose compassion 10 times",
+      "icon": "badge_wisdom",
+      "reward": "unlock_special_dialogue"
+    }
+  ]
+}

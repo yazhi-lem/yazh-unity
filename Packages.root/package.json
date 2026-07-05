@@ -1,0 +1,38 @@
+{
+  "name": "com.yazhi.yazh-xr",
+  "displayName": "Yazh XR Pet",
+  "version": "0.1.0",
+  "unity": "2022.3",
+  "description": "Tamil-first intelligent pet XR app with on-device Yazh 30K model",
+  "keywords": [
+    "ar",
+    "xr",
+    "pet",
+    "tamil",
+    "llm",
+    "game"
+  ],
+  "category": "XR/AR",
+  "documentation": "README.md",
+  "changelog": "CHANGELOG.md",
+  "dependencies": {
+    "com.unity.barracuda": "3.0.0",
+    "com.unity.xr.arfoundation": "5.1.0",
+    "com.unity.xr.arcore": "5.1.0",
+    "com.unity.xr.arkit": "5.1.0",
+    "com.unity.textmeshpro": "3.0.6"
+  },
+  "author": {
+    "name": "Yazhi Founder",
+    "email": "core@yazhi.dev",
+    "url": "https://yazhi.dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yazhi/yazh-unity.git"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  }
+}

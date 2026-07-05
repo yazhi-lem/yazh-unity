@@ -1,0 +1,58 @@
+{
+  "kuruvi": {
+    "id": "kuruvi",
+    "name": "குருவி",
+    "english": "Sparrow",
+    "personality": "energetic",
+    "voicePitch": 1.3,
+    "voiceSpacing": 1.1,
+    "animationSpeed": 1.1,
+    "description": "Small, quick, energetic. Good for first-time users.",
+    "strategy": [
+      "விரைவாக செல்லோம்",
+      "பயப்பாறைய வேண்டாம்"
+    ]
+  },
+  "maan": {
+    "id": "maan",
+    "name": "மான்",
+    "english": "Deer",
+    "personality": "graceful",
+    "voicePitch": 0.8,
+    "voiceSpacing": 0.9,
+    "animationSpeed": 0.9,
+    "description": "Graceful, attentive, curious. Good for explorers.",
+    "strategy": [
+      "கவனமாய் பார்த்தல் நல்லது",
+      "மெதுவாக எண்ணு"
+    ]
+  },
+  "yanai": {
+    "id": "yanai",
+    "name": "யானை",
+    "english": "Elephant",
+    "personality": "wise",
+    "voicePitch": 0.6,
+    "voiceSpacing": 0.8,
+    "animationSpeed": 0.8,
+    "description": "Large, wise, nurturing. Good for logical learners.",
+    "strategy": [
+      "கட்டுவது பாதுகாப்பு",
+      "அறிவு வலிமை"
+    ]
+  },
+  "pulliruvi": {
+    "id": "pulliruvi",
+    "name": "புள்ளிரூவி",
+    "english": "Spotted Dove",
+    "personality": "artistic",
+    "voicePitch": 1.2,
+    "voiceSpacing": 1.0,
+    "animationSpeed": 1.0,
+    "description": "Melodic, artistic. Good for musicians and creative kids.",
+    "strategy": [
+      "பாடலின் ஓசை உணவைக் கொண்டுவரும்",
+      "ஆயத்தத்தை நம்பு"
+    ]
+  }
+}

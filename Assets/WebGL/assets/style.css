@@ -1,0 +1,548 @@
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/* Yazhi WebGL Dashboard - Brutalist Design     */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+:root {
+    --color-bg: #fafaf8;
+    --color-bg-secondary: #f0f0ed;
+    --color-text-primary: #1a1a18;
+    --color-text-secondary: #666;
+    --color-border: #e0e0dd;
+    --color-accent: #2d2d2d;
+    --color-adhan: #d4a574;
+    --color-yazh: #4a9d6f;
+    --color-capitol: #2d2d2d;
+    --color-lion: #c85a3a;
+    
+    --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --transition-fast: 0.15s ease;
+    --transition-smooth: 0.3s ease-out;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: var(--font-family);
+    background: var(--color-bg);
+    color: var(--color-text-primary);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ━━━━━━━━━━━━━━━ FLOATING LOGO ━━━━━━━━━━━━━━━ */
+
+.logo-float {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 90px;
+    height: 90px;
+    z-index: 1000;
+    animation: float 4s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+    cursor: pointer;
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.08));
+}
+
+.yazhi-logo {
+    width: 100%;
+    height: 100%;
+    transition: transform var(--transition-fast);
+}
+
+.logo-float:hover .yazhi-logo {
+    transform: scale(1.08);
+}
+
+@keyframes float {
+    0%, 100% {
+        transform: translateY(0px) rotateZ(0deg);
+    }
+    50% {
+        transform: translateY(-12px) rotateZ(-2deg);
+    }
+}
+
+/* ━━━━━━━━━━━━━━━ CONTAINER & LAYOUT ━━━━━━━━━━━━━━━ */
+
+.container {
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    padding: 40px;
+    gap: 24px;
+}
+
+.header {
+    text-align: center;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.header h1 {
+    font-size: 3em;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+}
+
+.tagline {
+    font-size: 0.95em;
+    color: var(--color-text-secondary);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-weight: 500;
+}
+
+/* ━━━━━━━━━━━━━━━ GRID LAYOUT ━━━━━━━━━━━━━━━ */
+
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 28px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.panel {
+    background: white;
+    border: 2px solid var(--color-border);
+    border-radius: 0;
+    padding: 32px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.panel-title {
+    font-size: 0.95em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 20px;
+    color: var(--color-accent);
+}
+
+/* ━━━━━━━━━━━━━━━ LEFT PANEL: LANDSCAPES & STORIES ━━━━━━━━━━━━━━━ */
+
+.landscapes-panel {
+    overflow-y: auto;
+}
+
+.landscapes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 32px;
+}
+
+.landscape-card {
+    padding: 16px;
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: 0;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+}
+
+.landscape-card:hover {
+    background: white;
+    border-color: var(--color-accent);
+    transform: translateY(-2px);
+}
+
+.landscape-card.adhan {
+    border-top: 3px solid var(--color-adhan);
+}
+
+.landscape-card.yazh {
+    border-top: 3px solid var(--color-yazh);
+}
+
+.landscape-card.capitol {
+    border-top: 3px solid var(--color-capitol);
+}
+
+.landscape-card.lion {
+    border-top: 3px solid var(--color-lion);
+}
+
+.card-icon {
+    font-size: 2em;
+}
+
+.card-content h3 {
+    font-size: 0.9em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+.card-content p {
+    font-size: 0.75em;
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+}
+
+.badge {
+    display: inline-block;
+    font-size: 0.65em;
+    font-weight: 700;
+    padding: 3px 8px;
+    background: var(--color-accent);
+    color: white;
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.divider {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 28px 0;
+}
+
+/* ━━━━━━━━━━━━━━━ STORIES FEED ━━━━━━━━━━━━━━━ */
+
+.stories-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.story {
+    padding: 14px;
+    border-left: 4px solid var(--color-yazh);
+    background: var(--color-bg-secondary);
+    border-radius: 0;
+    transition: all var(--transition-fast);
+}
+
+.story:hover {
+    background: white;
+    border-left-color: var(--color-accent);
+}
+
+.story-header {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 0.8em;
+    align-items: center;
+}
+
+.story-time {
+    color: var(--color-text-secondary);
+    font-weight: 600;
+}
+
+.story-type {
+    display: inline-block;
+    padding: 3px 8px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    font-size: 0.7em;
+}
+
+.story-type.update {
+    background: var(--color-yazh);
+    color: white;
+}
+
+.story-type.build {
+    background: var(--color-adhan);
+    color: white;
+}
+
+.story-type.deploy {
+    background: var(--color-capitol);
+    color: white;
+}
+
+.story-type.milestone {
+    background: var(--color-lion);
+    color: white;
+}
+
+.story-text {
+    font-size: 0.9em;
+    color: var(--color-text-primary);
+    line-height: 1.4;
+}
+
+/* ━━━━━━━━━━━━━━━ RIGHT PANEL: CHAT ━━━━━━━━━━━━━━━ */
+
+.chat-panel {
+    display: flex;
+    flex-direction: column;
+    padding: 28px;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.chat-header h2 {
+    font-size: 0.95em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.agent-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--color-yazh);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.status-text {
+    color: var(--color-yazh);
+}
+
+/* ━━━━━━━━━━━━━━━ CHAT MESSAGES ━━━━━━━━━━━━━━━ */
+
+.chat-container {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    padding-right: 8px;
+}
+
+.chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.message {
+    display: flex;
+    animation: slideIn var(--transition-smooth);
+    max-width: 90%;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message.bot {
+    justify-content: flex-start;
+}
+
+.message.user {
+    justify-content: flex-end;
+    align-self: flex-end;
+}
+
+.message-content {
+    padding: 12px 14px;
+    border-radius: 4px;
+    font-size: 0.95em;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.message.bot .message-content {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
+}
+
+.message.user .message-content {
+    background: var(--color-accent);
+    color: white;
+}
+
+/* ━━━━━━━━━━━━━━━ CHAT INPUT ━━━━━━━━━━━━━━━ */
+
+.chat-input-box {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.chat-input {
+    flex: 1;
+    padding: 12px 14px;
+    border: 1px solid var(--color-border);
+    border-radius: 0;
+    font-family: var(--font-family);
+    font-size: 0.95em;
+    background: white;
+    color: var(--color-text-primary);
+    transition: all var(--transition-fast);
+}
+
+.chat-input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.chat-input::placeholder {
+    color: var(--color-text-secondary);
+}
+
+.chat-send {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid var(--color-accent);
+    background: var(--color-accent);
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0;
+}
+
+.chat-send:hover {
+    background: white;
+    color: var(--color-accent);
+}
+
+.chat-send:active {
+    transform: scale(0.95);
+}
+
+.chat-send svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* ━━━━━━━━━━━━━━━ SCROLLBAR ━━━━━━━━━━━━━━━ */
+
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent);
+}
+
+/* ━━━━━━━━━━━━━━━ RESPONSIVE ━━━━━━━━━━━━━━━ */
+
+@media (max-width: 1400px) {
+    .main-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 1024px) {
+    .container {
+        padding: 24px;
+        gap: 16px;
+    }
+    
+    .main-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .landscapes-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .logo-float {
+        width: 60px;
+        height: 60px;
+        top: 12px;
+        right: 12px;
+    }
+    
+    .container {
+        padding: 16px;
+        gap: 12px;
+    }
+    
+    .header h1 {
+        font-size: 2em;
+    }
+    
+    .panel {
+        padding: 20px;
+    }
+    
+    .landscapes-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .message {
+        max-width: 95%;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: 12px;
+    }
+    
+    .panel {
+        padding: 16px;
+    }
+    
+    .header h1 {
+        font-size: 1.5em;
+        letter-spacing: 0.04em;
+    }
+    
+    .tagline {
+        font-size: 0.8em;
+    }
+}

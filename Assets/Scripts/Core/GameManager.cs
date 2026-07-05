@@ -1,427 +1,237 @@
 using UnityEngine;
-using System.Collections.Generic;
+using UnityEngine.XR.ARFoundation;
 
 /// <summary>
-/// GameManager: Central orchestrator for Yazh XR app
-/// Manages game state, scene transitions, pet lifecycle, and resource allocation
+/// Central game manager for Yazh XR App.
+/// Handles scene state, pet lifecycle, and game progression.
 /// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
 
-    [SerializeField] private string gameVersion = "0.1.0-prototype";
-    [SerializeField] private int targetFPS = 60;  // AR baseline
-    [SerializeField] private bool enableLogging = true;
-
-    // Game state
-    private GameState currentGameState = GameState.MainMenu;
-    private Pet selectedPet = null;
-    private BiomeController currentBiome = null;
-    private ResourceManager resourceManager;
-    private WeatherSystem weatherSystem;
-
-    // Session tracking
-    private float sessionStartTime;
-    private int currentDayCount = 1;
-    private Dictionary<string, float> sessionMetrics;
+    [SerializeField] private ARSession arSession;
+    [SerializeField] private string tamiliLanguage = "தமிழ்";
+    
+    private PetManager petManager;
+    private DialogueSystem dialogueSystem;
+    private SurvivalSystem survivalSystem;
+    private YazhInferenceEngine yazhEngine;
+    private YazhLife yazhLife;
 
     public enum GameState
     {
-        MainMenu,
-        PetSelection,
-        BiomeActive,
-        PetChat,
+        Onboarding,
+        MainGame,
         Paused,
-        GameOver,
-        Settings
+        Challenge,
+        Settings,
+        Achievements
     }
+
+    private GameState currentState = GameState.Onboarding;
+    private string selectedPetType; // kuruvi, maan, yanai, pulliruvi
+    private int challengeDay = 1;   // 1-7 in current challenge cycle
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+            InitializeManagers();
+        }
+        else
         {
             Destroy(gameObject);
-            return;
-        }
-
-        Instance = this;
-        DontDestroyOnLoad(gameObject);
-
-        Initialize();
-    }
-
-    private void Initialize()
-    {
-        Application.targetFrameRate = targetFPS;
-        sessionStartTime = Time.time;
-        sessionMetrics = new Dictionary<string, float>();
-
-        Log($"[Yazh XR] Initialized v{gameVersion}");
-        Log($"[Yazh XR] Target FPS: {targetFPS}");
-        Log($"[Yazh XR] Platform: {Application.platform}");
-    }
-
-    private void Update()
-    {
-        if (currentGameState == GameState.BiomeActive)
-        {
-            UpdateGameLoop();
-        }
-
-        // ESC to pause
-        if (Input.GetKeyDown(KeyCode.Escape))
-        {
-            TogglePause();
         }
     }
 
-    private void UpdateGameLoop()
+    private void InitializeManagers()
     {
-        // Update active systems
-        if (currentBiome != null)
+        petManager = GetComponent<PetManager>() ?? gameObject.AddComponent<PetManager>();
+        dialogueSystem = GetComponent<DialogueSystem>() ?? gameObject.AddComponent<DialogueSystem>();
+        survivalSystem = GetComponent<SurvivalSystem>() ?? gameObject.AddComponent<SurvivalSystem>();
+        yazhEngine = GetComponent<YazhInferenceEngine>() ?? gameObject.AddComponent<YazhInferenceEngine>();
+        yazhLife = GetComponent<YazhLife>() ?? gameObject.AddComponent<YazhLife>();
+
+        // Connect life events to game behaviour
+        YazhLife.OnPhaseChanged += OnPetPhaseChanged;
+        YazhLife.OnPetDormant   += OnPetEnteredDormancy;
+        YazhLife.OnPetAwakened  += OnPetAwoke;
+
+        Debug.Log("[GameManager] All managers initialized");
+    }
+
+    private async void Start()
+    {
+        // Load Yazh 30K model asynchronously
+        await yazhEngine.InitializeAsync("Assets/Models/AI/yazh_30k.onnx");
+        
+        // AR Session management
+        if (arSession != null)
         {
-            currentBiome.UpdateBiome(Time.deltaTime);
+            arSession.Reset();
         }
 
-        if (selectedPet != null)
-        {
-            selectedPet.UpdatePet(Time.deltaTime);
-        }
-
-        if (weatherSystem != null)
-        {
-            weatherSystem.UpdateWeather(Time.deltaTime);
-        }
+        SetGameState(GameState.Onboarding);
     }
 
     /// <summary>
-    /// Transitions to a new game state
+    /// Transition between game states
     /// </summary>
-    public void ChangeGameState(GameState newState)
+    public void SetGameState(GameState newState)
     {
-        GameState previousState = currentGameState;
-        currentGameState = newState;
-
-        Log($"[State Transition] {previousState} → {newState}");
+        Debug.Log($"[GameManager] State transition: {currentState} → {newState}");
+        currentState = newState;
 
         switch (newState)
         {
-            case GameState.MainMenu:
-                OnMainMenu();
+            case GameState.Onboarding:
+                OnStateOnboarding();
                 break;
-            case GameState.PetSelection:
-                OnPetSelection();
+            case GameState.MainGame:
+                OnStateMainGame();
                 break;
-            case GameState.BiomeActive:
-                OnBiomeStarted();
-                break;
-            case GameState.PetChat:
-                OnPetChatStarted();
+            case GameState.Challenge:
+                OnStateChallenge();
                 break;
             case GameState.Paused:
-                Time.timeScale = 0f;
+                OnStatePaused();
                 break;
             case GameState.Settings:
-                OnSettingsOpened();
+                OnStateSettings();
+                break;
+            case GameState.Achievements:
                 break;
         }
     }
 
-    public void SelectPet(PetType petType)
+    private void OnStateOnboarding()
     {
-        selectedPet = new Pet(petType);
-        Log($"[Pet Selected] {petType} - Health: {selectedPet.Health}, Energy: {selectedPet.Energy}");
-        ChangeGameState(GameState.BiomeActive);
+        Debug.Log("[GameManager] Entering Onboarding state");
+        // Load onboarding scene / UI
+        Time.timeScale = 1f;
     }
 
-    public void StartBiome(BiomeType biomeType)
+    private void OnStateMainGame()
     {
-        if (currentBiome != null)
+        Debug.Log("[GameManager] Entering MainGame state");
+        // Spawn pet, initialize dialogue
+        if (!string.IsNullOrEmpty(selectedPetType))
         {
-            Destroy(currentBiome.gameObject);
+            petManager.SpawnPet(selectedPetType);
+            survivalSystem.StartDaySimulation();
         }
-
-        GameObject biomeObj = new GameObject($"Biome_{biomeType}");
-        currentBiome = biomeObj.AddComponent<BiomeController>();
-        currentBiome.Initialize(biomeType);
-
-        weatherSystem = gameObject.AddComponent<WeatherSystem>();
-        weatherSystem.Initialize(biomeType);
-
-        Log($"[Biome Loaded] {biomeType} - Day {currentDayCount}/7");
+        Time.timeScale = 1f;
     }
 
-    public void TogglePause()
+    private void OnStateChallenge()
     {
-        if (currentGameState == GameState.BiomeActive)
+        Debug.Log("[GameManager] Entering Challenge state - Day " + challengeDay);
+        survivalSystem.StartChallenge(challengeDay);
+        survivalSystem.IncreaseDifficulty();
+        Time.timeScale = 1f;
+    }
+
+    private void OnStatePaused()
+    {
+        Time.timeScale = 0f;
+    }
+
+    private void OnStateSettings()
+    {
+        Time.timeScale = 0.5f; // Slow-mo while settings open
+    }
+
+    /// <summary>
+    /// Called from Onboarding UI after pet selection
+    /// </summary>
+    public void OnPetSelected(string petType)
+    {
+        selectedPetType = petType;
+        Debug.Log($"[GameManager] Pet selected: {petType}");
+        SetGameState(GameState.MainGame);
+    }
+
+    /// <summary>
+    /// Advance challenge by one day
+    /// </summary>
+    public void AdvanceChallenge()
+    {
+        challengeDay++;
+        if (challengeDay > 7)
         {
-            ChangeGameState(GameState.Paused);
+            challengeDay = 1;
+            Debug.Log("[GameManager] Challenge cycle complete! Unlock reward.");
+            OnChallengeComplete();
         }
-        else if (currentGameState == GameState.Paused)
+        else
         {
-            ChangeGameState(GameState.BiomeActive);
-            Time.timeScale = 1f;
-        }
-    }
-
-    private void OnMainMenu()
-    {
-        // Load MainMenu scene
-        Log("[UI] Loading MainMenu");
-    }
-
-    private void OnPetSelection()
-    {
-        // Load PetSelection scene
-        Log("[UI] Loading PetSelection");
-    }
-
-    private void OnBiomeStarted()
-    {
-        StartBiome(BiomeType.SangamKaadu);  // Week 1 default
-        Log("[Gameplay] Biome started, resources initialized");
-    }
-
-    private void OnPetChatStarted()
-    {
-        Log("[Chat] Pet chat UI activated");
-        // Trigger dialogue HUD
-    }
-
-    private void OnSettingsOpened()
-    {
-        Log("[UI] Settings menu opened");
-    }
-
-    public void EndDay()
-    {
-        currentDayCount++;
-        Log($"[Day Cycle] Completed day, now on Day {currentDayCount}");
-
-        if (currentDayCount > 7)
-        {
-            CompleteChallenge();
+            SetGameState(GameState.Challenge);
         }
     }
 
-    private void CompleteChallenge()
+    private void OnChallengeComplete()
     {
-        Log($"[Achievement] 7-day challenge completed!");
-        Log($"[Pet Stats] Final - Health: {selectedPet.Health}, Happiness: {selectedPet.Happiness}");
-        ChangeGameState(GameState.GameOver);
+        // TODO: Unlock biome or pet ability
+        SetGameState(GameState.Achievements);
     }
 
-    public GameState GetCurrentState() => currentGameState;
-    public Pet GetSelectedPet() => selectedPet;
-    public BiomeController GetCurrentBiome() => currentBiome;
-    public int GetCurrentDay() => currentDayCount;
+    public GameState GetCurrentState() => currentState;
+    public string GetSelectedPet() => selectedPetType;
+    public int GetChallengeDay() => challengeDay;
+    public YazhLife GetYazhLife() => yazhLife;
 
-    private void Log(string message)
+    // ─── Life event handlers ──────────────────────────────────────────────────
+
+    private void OnPetPhaseChanged(YazhLife.LifePhase phase)
     {
-        if (enableLogging)
+        Debug.Log($"[GameManager] Pet phase → {phase} ({yazhLife.GetTamilPhaseLabel()})");
+
+        // When struggling, auto-trigger a gentle challenge hint
+        if (phase == YazhLife.LifePhase.Struggling && currentState == GameState.MainGame)
         {
-            Debug.Log(message);
+            survivalSystem.CheckChallengeTrigger();
         }
     }
 
-    private void OnApplicationQuit()
+    private void OnPetEnteredDormancy()
     {
-        float sessionDuration = Time.time - sessionStartTime;
-        Log($"[Session End] Duration: {sessionDuration:F1}s, Days completed: {currentDayCount}");
+        Debug.Log("[GameManager] Pet dormant — pausing game world.");
+        SetGameState(GameState.Paused);
+    }
+
+    private void OnPetAwoke()
+    {
+        Debug.Log("[GameManager] Pet awoke — resuming MainGame.");
+        SetGameState(GameState.MainGame);
+    }
+
+    // ─── Care shortcuts (call from UI buttons) ────────────────────────────────
+
+    public void FeedPet(string resourceType)
+    {
+        yazhLife.Feed(resourceType);
+        survivalSystem.GatherResource(resourceType, 1);
+        petManager.PlayEmotionAnimation("happy");
+    }
+
+    public void PlayWithPet()
+    {
+        yazhLife.Play();
+        petManager.PlayEmotionAnimation("celebrate");
+    }
+
+    public void TalkToPet(string inputText)
+    {
+        yazhLife.Talk();
+        _ = dialogueSystem.ProcessInput(inputText);
+    }
+
+    private void OnDestroy()
+    {
+        YazhLife.OnPhaseChanged -= OnPetPhaseChanged;
+        YazhLife.OnPetDormant   -= OnPetEnteredDormancy;
+        YazhLife.OnPetAwakened  -= OnPetAwoke;
     }
 }
-
-/// <summary>
-/// Pet: Core pet entity with stats, behaviors, and AI
-/// </summary>
-public class Pet
-{
-    public PetType Type { get; private set; }
-    public float Health { get; set; } = 100f;
-    public float Energy { get; set; } = 100f;
-    public float Hunger { get; set; } = 50f;
-    public float Happiness { get; set; } = 75f;
-    public string Name { get; set; } = "Companion";
-
-    // Pet personality affects response style
-    public PetPersonality Personality { get; private set; }
-
-    public enum PetPersonality
-    {
-        Curious,      // Kuruvi (bird) - fast, curious
-        Thoughtful,   // Maan (deer) - cautious, logical
-        Wise,         // Yanai (elephant) - patient, strategic
-        Playful       // Pulliruvi (cat) - independent, tricky
-    }
-
-    public Pet(PetType type)
-    {
-        Type = type;
-        Personality = type switch
-        {
-            PetType.Kuruvi => PetPersonality.Curious,
-            PetType.Maan => PetPersonality.Thoughtful,
-            PetType.Yanai => PetPersonality.Wise,
-            PetType.Pulliruvi => PetPersonality.Playful,
-            _ => PetPersonality.Curious
-        };
-    }
-
-    public void UpdatePet(float deltaTime)
-    {
-        // Decay stats naturally
-        Energy = Mathf.Max(0, Energy - deltaTime * 5f);
-        Hunger = Mathf.Min(100, Hunger + deltaTime * 3f);
-
-        // Mood impacts happiness
-        if (Hunger > 80) Happiness = Mathf.Max(0, Happiness - deltaTime * 2f);
-        if (Energy < 20) Happiness = Mathf.Max(0, Happiness - deltaTime * 1f);
-
-        // Health linked to happiness
-        Health = Mathf.Lerp(Health, Happiness, deltaTime * 0.1f);
-    }
-
-    public string GetStatusMessage()
-    {
-        return $"{Name} ({Type})\nHealth: {Health:F0}% | Energy: {Energy:F0}% | Happiness: {Happiness:F0}%";
-    }
-}
-
-public enum PetType { Kuruvi, Maan, Yanai, Pulliruvi }
-public enum BiomeType { SangamKaadu, Oorru, Kulaathanku, KaraiParai }
-
-/// <summary>
-/// BiomeController: Manages individual biome environment and interactive elements
-/// </summary>
-public class BiomeController : MonoBehaviour
-{
-    public BiomeType BiomeType { get; private set; }
-    private List<Resource> availableResources = new();
-    private ARPlaneManager arPlaneManager;
-
-    public void Initialize(BiomeType biomeType)
-    {
-        BiomeType = biomeType;
-        SetupBiomeEnvironment();
-    }
-
-    private void SetupBiomeEnvironment()
-    {
-        Debug.Log($"[Biome] Setting up {BiomeType}");
-
-        // AR Foundation setup
-        arPlaneManager = FindObjectOfType<ARPlaneManager>();
-        if (arPlaneManager != null)
-        {
-            arPlaneManager.planesChanged += OnARPlanesChanged;
-        }
-
-        // Spawn biome-specific resources
-        InitializeResources();
-    }
-
-    private void InitializeResources()
-    {
-        // Week 1: Static prop placement (no procedural gen yet)
-        availableResources.Clear();
-
-        switch (BiomeType)
-        {
-            case BiomeType.SangamKaadu:
-                // Forest: water streams, trees, herbs
-                availableResources.Add(new Resource(ResourceType.Water, 10, "Stream"));
-                availableResources.Add(new Resource(ResourceType.Food, 5, "Berries"));
-                availableResources.Add(new Resource(ResourceType.Shelter, 3, "Rock Outcrop"));
-                availableResources.Add(new Resource(ResourceType.Herb, 7, "Medicinal Plants"));
-                break;
-        }
-
-        Debug.Log($"[Resources] Spawned {availableResources.Count} resource nodes in {BiomeType}");
-    }
-
-    public void UpdateBiome(float deltaTime)
-    {
-        // Update AR rendering, weather effects, etc.
-    }
-
-    private void OnARPlanesChanged(ARPlanesChangedEventArgs args)
-    {
-        Debug.Log($"[AR] Planes detected: {args.added.Count} added, {args.updated.Count} updated");
-    }
-}
-
-/// <summary>
-/// Resource: Collectable items in the biome
-/// </summary>
-public class Resource
-{
-    public ResourceType Type { get; set; }
-    public int Quantity { get; set; }
-    public string Name { get; set; }
-
-    public Resource(ResourceType type, int quantity, string name)
-    {
-        Type = type;
-        Quantity = quantity;
-        Name = name;
-    }
-}
-
-public enum ResourceType { Water, Food, Shelter, Herb }
-
-/// <summary>
-/// WeatherSystem: Manages dynamic weather affecting gameplay
-/// </summary>
-public class WeatherSystem : MonoBehaviour
-{
-    public WeatherCondition CurrentWeather { get; private set; } = WeatherCondition.Sunny;
-    private float weatherCycleTime = 0f;
-    private float weatherCycleLength = 180f;  // 3 min cycle
-
-    public enum WeatherCondition { Sunny, Cloudy, Rainy, Stormy }
-
-    public void Initialize(BiomeType biomeType)
-    {
-        Debug.Log($"[Weather] Initialized for {biomeType}");
-    }
-
-    public void UpdateWeather(float deltaTime)
-    {
-        weatherCycleTime += deltaTime;
-
-        if (weatherCycleTime >= weatherCycleLength)
-        {
-            // Cycle to next weather
-            CurrentWeather = (WeatherCondition)(((int)CurrentWeather + 1) % 4);
-            weatherCycleTime = 0f;
-            Debug.Log($"[Weather] Changed to {CurrentWeather}");
-
-            // Apply gameplay effects
-            ApplyWeatherEffects();
-        }
-    }
-
-    private void ApplyWeatherEffects()
-    {
-        var pet = GameManager.Instance.GetSelectedPet();
-        if (pet == null) return;
-
-        switch (CurrentWeather)
-        {
-            case WeatherCondition.Rainy:
-                pet.Health -= 5f;  // Wet and cold
-                break;
-            case WeatherCondition.Stormy:
-                pet.Energy -= 10f;  // Stressed
-                break;
-            case WeatherCondition.Sunny:
-                pet.Happiness += 5f;  // Happy
-                break;
-        }
-    }
-}
-
-// Required using statements (add to top of actual file):
-// using UnityEngine;
-// using UnityEngine.XR.ARFoundation;
-// using System.Collections.Generic;
