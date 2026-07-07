@@ -1,5 +1,5 @@
-using UnityEngine;
-using Unity.Barracuda;
+﻿using UnityEngine;
+using Unity.InferenceEngine;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -7,13 +7,16 @@ using System.Threading.Tasks;
 /// Runs Yazh 30K ONNX model inference on-device.
 /// Manages tokenization, inference, and decoding.
 /// Target latency: <150ms per token generation.
+///
+/// Uses Unity's Inference Engine (formerly Sentis / Barracuda successor).
+/// Package: com.unity.ai.inference — see Packages/manifest.json
 /// </summary>
 public class YazhInferenceEngine : MonoBehaviour
 {
     public static YazhInferenceEngine Instance { get; private set; }
 
-    [SerializeField] private NNModel yazhModel;
-    private IWorker worker;
+    [SerializeField] private ModelAsset yazhModel;
+    private Worker worker;
     private bool isModelReady = false;
 
     private Dictionary<string, int> tamilTokenizer = new(); // 30K tokens
@@ -36,17 +39,17 @@ public class YazhInferenceEngine : MonoBehaviour
         {
             try
             {
-                // Load ONNX model via Barracuda
-                TextAsset modelAsset = Resources.Load<TextAsset>(modelPath);
+                // Load ONNX model via Inference Engine
+                ModelAsset modelAsset = Resources.Load<ModelAsset>(modelPath);
                 if (modelAsset == null)
                 {
                     Debug.LogError($"[YazhInferenceEngine] Model not found: {modelPath}");
                     return;
                 }
 
-                // Create worker for inference
-                var model = ModelLoader.Load(modelAsset);
-                worker = WorkerFactory.CreateWorker(WorkerFactory.Type.ComputePrecompiled, model);
+                // Build the runtime model and create a worker for inference
+                Model model = ModelLoader.Load(modelAsset);
+                worker = new Worker(model, BackendType.GPUCompute);
 
                 LoadTamilTokenizer();
                 isModelReady = true;
@@ -91,26 +94,28 @@ public class YazhInferenceEngine : MonoBehaviour
             {
                 // Tokenize input
                 var inputTokens = TokenizeTamil(input);
-                
+
                 // Build prompt: system message + context + input
                 var prompt = $"You are a Tamil-speaking pet companion.\n{context}\nInput: {input}\nResponse:";
                 var promptTokens = TokenizeTamil(prompt);
 
                 // Run model inference (streaming token generation)
-                var tensor = new float[promptTokens.Count];
+                var tensorData = new float[promptTokens.Count];
                 for (int i = 0; i < promptTokens.Count; i++)
-                    tensor[i] = promptTokens[i];
+                    tensorData[i] = promptTokens[i];
 
-                using (var input_tensor = new Tensor(tensor))
+                using (var inputTensor = new Tensor<float>(new TensorShape(1, promptTokens.Count), tensorData))
                 {
-                    worker.Execute(input_tensor);
-                    var output = worker.PeekOutput();
+                    worker.Schedule(inputTensor);
+                    var output = worker.PeekOutput() as Tensor<float>;
+                    output.CompleteAllPendingOperations();
 
                     // Extract top-k tokens (greedy decoding for simplicity)
-                    for (int i = 0; i < output.length && tokens.Count < 50; i++)
+                    var outputData = output.DownloadToArray();
+                    for (int i = 0; i < outputData.Length && tokens.Count < 50; i++)
                     {
                         // Logits → argmax → top token
-                        int tokenId = (int)output[i]; // Simplified
+                        int tokenId = (int)outputData[i]; // Simplified
                         tokens.Add(tokenId);
                     }
                 }
@@ -144,7 +149,7 @@ public class YazhInferenceEngine : MonoBehaviour
     {
         // Tokenize Tamil text into 30K vocabulary
         var tokens = new List<int>();
-        
+
         foreach (char c in text)
         {
             if (tamilTokenizer.TryGetValue(c.ToString(), out int tokenId))

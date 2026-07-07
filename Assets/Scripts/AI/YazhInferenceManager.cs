@@ -1,5 +1,5 @@
 using UnityEngine;
-using Unity.Barracuda;
+using Unity.InferenceEngine;
 using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
@@ -8,12 +8,19 @@ using System.Security.Cryptography;
 /// YazhInferenceManager: Manages on-device Tamil language inference via Yazh 30K ONNX model
 /// Handles model loading, tokenization, inference, and response generation
 /// Targets < 150ms latency for real-time dialogue
+///
+/// NOTE: Migrated from Unity.Barracuda (deprecated, unsupported on Unity 6) to
+/// Unity's Inference Engine (com.unity.ai.inference, formerly "Sentis"). Barracuda
+/// has no Unity 6 release, so on-device model files must be serialized to the
+/// ".sentis" format (via the Inference Engine model importer's
+/// "Serialize to StreamingAssets" action) rather than shipped as raw ".onnx" files.
+/// Update MODEL_PATH / ONNX_MODEL_HASHES below once the ".sentis" files are produced.
 /// </summary>
 public class YazhInferenceManager : MonoBehaviour
 {
     public static YazhInferenceManager Instance { get; private set; }
 
-    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.onnx";
+    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.sentis";
     [SerializeField] private string tokenizerPath = "MLModels/yazh-tokenizer.json";
     [SerializeField] private float inferenceTimeout = 0.5f;  // 500ms max (target 150ms)
     [SerializeField] private bool enableProfiling = true;
@@ -25,7 +32,7 @@ public class YazhInferenceManager : MonoBehaviour
     private float maxLatency = 0f;
 
     private Model yazhModel;
-    private IWorker inferenceWorker;
+    private Worker inferenceWorker;
     private YazhTokenizer tokenizer;
     private string[] vocabEmbeddings;
 
@@ -40,14 +47,14 @@ public class YazhInferenceManager : MonoBehaviour
     private const float TEMPERATURE = 0.7f;
 
     // SEC-001: ONNX Model Hash Verification (SHA-256)
-    // Embedded hashes for all three ONNX model variants (INT8, INT4, FP32)
+    // Embedded hashes for all three serialized model variants (INT8, INT4, FP32)
     // Generated: 2026-06-18
     // If any hash mismatches at load time, model loading is rejected (security failure)
     private static readonly Dictionary<string, string> ONNX_MODEL_HASHES = new()
     {
-        { "MLModels/yazh-30k-int8.onnx", "3d9bfaeec2994ce78f3f29c979354a105cc8198aa5018bf4dc0d13a892aa59dc" },
-        { "MLModels/yazh-30k-int4.onnx", "ca791d14644203acb35e76413f2b0a914ce6d0a2c81d8957b9654dc23a4765ec" },
-        { "MLModels/yazh-30k.onnx", "d6bf01d17df05a0ec51ef814a500d645aa94b367e2907c1179131e69a442f8a6" }
+        { "MLModels/yazh-30k-int8.sentis", "3d9bfaeec2994ce78f3f29c979354a105cc8198aa5018bf4dc0d13a892aa59dc" },
+        { "MLModels/yazh-30k-int4.sentis", "ca791d14644203acb35e76413f2b0a914ce6d0a2c81d8957b9654dc23a4765ec" },
+        { "MLModels/yazh-30k.sentis", "d6bf01d17df05a0ec51ef814a500d645aa94b367e2907c1179131e69a442f8a6" }
     };
 
     private void Awake()
@@ -69,7 +76,7 @@ public class YazhInferenceManager : MonoBehaviour
     {
         Debug.Log("[Yazh AI] Initializing inference pipeline...");
 
-        // Load ONNX model
+        // Load model
         LoadModel();
 
         // Load tokenizer
@@ -79,7 +86,7 @@ public class YazhInferenceManager : MonoBehaviour
         if (isModelReady)
         {
             // For production: use GPU if available; fall back to CPU
-            inferenceWorker = WorkerFactory.CreateWorker(WorkerFactory.Type.ComputePrecompiled, yazhModel);
+            inferenceWorker = new Worker(yazhModel, BackendType.GPUCompute);
             Debug.Log("[Yazh AI] Inference worker initialized");
 
             // Run warm-up inference to prime the model
@@ -105,8 +112,7 @@ public class YazhInferenceManager : MonoBehaviour
             return;
         }
 
-        byte[] modelData = File.ReadAllBytes(modelFilePath);
-        yazhModel = ModelLoader.Load(modelData);
+        yazhModel = ModelLoader.Load(modelFilePath);
 
         if (yazhModel != null)
         {
@@ -123,7 +129,7 @@ public class YazhInferenceManager : MonoBehaviour
     }
 
     /// <summary>
-    /// SEC-001: Verify ONNX model SHA-256 hash against embedded trusted hashes
+    /// SEC-001: Verify serialized model SHA-256 hash against embedded trusted hashes
     /// Compares file hash with values embedded in ONNX_MODEL_HASHES dictionary
     /// Returns false if: hash mismatch, model path not in whitelist, or hash computation fails
     /// This prevents model poisoning attacks (supply-chain or on-device tampering)
@@ -184,10 +190,10 @@ public class YazhInferenceManager : MonoBehaviour
         {
             float warmupStart = Time.realtimeSinceStartup;
             int[] dummyTokens = new int[] { 1, 2, 3, 4, 5 };
-            Tensor warmupTensor = CreateInputTensor(dummyTokens);
-            inferenceWorker.Execute(warmupTensor);
-            Tensor warmupOutput = inferenceWorker.PeekOutput();
-            warmupTensor.Dispose();
+            using Tensor<float> warmupTensor = CreateInputTensor(dummyTokens);
+            inferenceWorker.Schedule(warmupTensor);
+            var warmupOutput = inferenceWorker.PeekOutput() as Tensor<float>;
+            warmupOutput.CompleteAllPendingOperations();
             float warmupTime = (Time.realtimeSinceStartup - warmupStart) * 1000f;
             Debug.Log($"[Yazh AI] Warm-up inference: {warmupTime:F1}ms");
         }
@@ -216,6 +222,11 @@ public class YazhInferenceManager : MonoBehaviour
     }
 
     private const int MAX_INPUT_LENGTH = 512;  // Max chars for child input
+
+    /// <summary>
+    /// Returns whether the model has finished loading and is ready for inference.
+    /// </summary>
+    public bool IsModelReady() => isModelReady;
 
     /// <summary>
     /// Run inference on user input (child's chat message)
@@ -260,13 +271,14 @@ public class YazhInferenceManager : MonoBehaviour
         #endif
 
         // 2. Prepare input tensor
-        Tensor inputTensor = CreateInputTensor(inputTokens);
+        Tensor<float> inputTensor = CreateInputTensor(inputTokens);
 
         // 3. Run inference (blocking call, but ideally async via Unity job system)
-        inferenceWorker.Execute(inputTensor);
+        inferenceWorker.Schedule(inputTensor);
 
         // 4. Get output logits
-        Tensor outputLogits = inferenceWorker.PeekOutput();
+        var outputLogits = inferenceWorker.PeekOutput() as Tensor<float>;
+        outputLogits.CompleteAllPendingOperations();
 
         // 5. Sample next token(s) with temperature
         int nextToken = SampleNextToken(outputLogits, TEMPERATURE);
@@ -305,10 +317,10 @@ public class YazhInferenceManager : MonoBehaviour
         yield return null;
     }
 
-    private Tensor CreateInputTensor(int[] tokens)
+    private Tensor<float> CreateInputTensor(int[] tokens)
     {
         // Pad/truncate to MAX_CONTEXT_TOKENS
-        int[] paddedTokens = new int[MAX_CONTEXT_TOKENS];
+        float[] paddedTokens = new float[MAX_CONTEXT_TOKENS];
         int offset = MAX_CONTEXT_TOKENS - tokens.Length;
 
         // Left-pad with 0 (pad token)
@@ -316,25 +328,27 @@ public class YazhInferenceManager : MonoBehaviour
             paddedTokens[i] = 0;
 
         // Copy actual tokens
-        System.Array.Copy(tokens, 0, paddedTokens, offset, tokens.Length);
+        for (int i = 0; i < tokens.Length; i++)
+            paddedTokens[offset + i] = tokens[i];
 
         // Create tensor [1, seq_len]
-        return new Tensor(1, MAX_CONTEXT_TOKENS, 1, 1, paddedTokens);
+        return new Tensor<float>(new TensorShape(1, MAX_CONTEXT_TOKENS), paddedTokens);
     }
 
-    private int SampleNextToken(Tensor logits, float temperature)
+    private int SampleNextToken(Tensor<float> logits, float temperature)
     {
         // TODO: Implement top-k / nucleus sampling
         // For MVP: argmax (greedy)
+        float[] logitsData = logits.DownloadToArray();
 
         float maxLogit = float.MinValue;
         int maxIdx = 0;
 
-        for (int i = 0; i < logits.data.Length; i++)
+        for (int i = 0; i < logitsData.Length; i++)
         {
-            if (logits.data[i] > maxLogit)
+            if (logitsData[i] > maxLogit)
             {
-                maxLogit = logits.data[i];
+                maxLogit = logitsData[i];
                 maxIdx = i;
             }
         }
@@ -344,11 +358,14 @@ public class YazhInferenceManager : MonoBehaviour
 
     private long EstimateModelSize(Model model)
     {
+        // Rough estimation: sum each constant tensor's element count * 4 bytes (float32)
         long bytes = 0;
-        foreach (var layer in model.layers)
+        foreach (var constant in model.constants)
         {
-            // Rough estimation: each constant roughly 4 bytes per parameter
-            bytes += layer.weights.Count * 4;
+            long elementCount = 1;
+            foreach (var dim in constant.shape)
+                elementCount *= dim;
+            bytes += elementCount * 4;
         }
         return bytes;
     }
@@ -415,9 +432,10 @@ public class YazhInferenceManager : MonoBehaviour
             try
             {
                 int[] tokens = tokenizer.Encode(prompt);
-                Tensor input = CreateInputTensor(tokens);
-                inferenceWorker.Execute(input);
-                Tensor output = inferenceWorker.PeekOutput();
+                Tensor<float> input = CreateInputTensor(tokens);
+                inferenceWorker.Schedule(input);
+                var output = inferenceWorker.PeekOutput() as Tensor<float>;
+                output.CompleteAllPendingOperations();
                 int nextToken = SampleNextToken(output, TEMPERATURE);
                 tokenizer.Decode(new int[] { nextToken });
                 input.Dispose();
@@ -538,9 +556,3 @@ public class YazhTokenizer
         return result.ToString();
     }
 }
-
-// Required imports (add to actual file):
-// using UnityEngine;
-// using Unity.Barracuda;
-// using System.Collections.Generic;
-// using System.IO;
