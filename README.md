@@ -119,9 +119,16 @@ See [docs/SETUP.md](docs/SETUP.md) for full setup guide.
 
 ---
 
+## CI/CD
+
+GitHub Actions builds a debug-signed APK on every push to `main`/`develop`
+(artifact: `Yazh-Android-APK`). Builds are **model-less by default** — the app
+falls back to scripted Tamil dialogue without the ONNX weights. One-time
+setup (Unity license secrets): [docs/deployment/CI_SETUP.md](docs/deployment/CI_SETUP.md).
+
 ## Blockers
 
-- **Play Store:** Awaiting signing key (founder gate)
+- **Play Store:** Awaiting signing key (founder gate) — CI ships unsigned test APKs meanwhile
 - **App Store:** Awaiting signing certificate (founder gate)
 
 ---

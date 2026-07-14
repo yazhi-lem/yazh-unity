@@ -7,31 +7,20 @@ on:
     branches: [main]
   workflow_dispatch:
     inputs:
-      platform:
-        description: 'Build platform'
-        required: true
-        default: 'android'
-        type: choice
-        options:
-          - android
-          - ios
-          - both
-      build_mode:
-        description: 'Build mode'
-        required: true
-        default: 'release'
-        type: choice
-        options:
-          - release
-          - debug
-
-env:
-  UNITY_VERSION: '6000.0.30f1'  # Unity 6 LTS
-  PROJECT_PATH: '.'
+      include_models:
+        description: 'Bundle ONNX models into the APK (default: model-less build)'
+        required: false
+        default: false
+        type: boolean
+      build_ios:
+        description: 'Also export iOS Xcode project'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   # ──────────────────────────────────────────────
-  # Job 1: Validate project structure & scripts
+  # Job 1: Validate project structure (fast, no Unity)
   # ──────────────────────────────────────────────
   validate:
     name: 'Validate Project'
@@ -43,166 +32,158 @@ jobs:
       - name: Verify project structure
         run: |
           echo "=== Project Structure Validation ==="
-          test -f ProjectSettings.json && echo "✅ ProjectSettings.json" || echo "❌ Missing ProjectSettings.json"
-          test -f Assets/Scripts/Core/GameManager.cs && echo "✅ GameManager.cs" || echo "❌ Missing GameManager.cs"
-          test -f Assets/Scripts/AI/YazhInferenceManager.cs && echo "✅ YazhInferenceManager.cs" || echo "❌ Missing YazhInferenceManager.cs"
-          test -f Assets/Scripts/AR/ARSetup.cs && echo "✅ ARSetup.cs" || echo "❌ Missing ARSetup.cs"
-          test -f build-yazh.sh && echo "✅ build-yazh.sh" || echo "❌ Missing build-yazh.sh"
-          test -f Assets/StreamingAssets/MLModels/yazh-30k.onnx && echo "✅ yazh-30k.onnx" || echo "⚠️ Missing yazh-30k.onnx"
-          test -f Assets/StreamingAssets/MLModels/yazh-30k-int8.onnx && echo "✅ yazh-30k-int8.onnx" || echo "⚠️ Missing yazh-30k-int8.onnx"
-          test -f Assets/StreamingAssets/MLModels/yazh-30k-int4.onnx && echo "✅ yazh-30k-int4.onnx" || echo "⚠️ Missing yazh-30k-int4.onnx"
-          test -f Assets/StreamingAssets/MLModels/yazh-tokenizer.json && echo "✅ yazh-tokenizer.json" || echo "⚠️ Missing yazh-tokenizer.json"
-          echo "=== Validation Complete ==="
-
-      - name: Check C# script syntax
-        run: |
-          echo "=== C# Syntax Check ==="
-          for f in Assets/Scripts/Core/GameManager.cs Assets/Scripts/AI/YazhInferenceManager.cs Assets/Scripts/AR/ARSetup.cs; do
-            if [ -f "$f" ]; then
-              # Basic syntax checks: balanced braces, no obvious errors
-              open_braces=$(grep -o '{' "$f" | wc -l)
-              close_braces=$(grep -o '}' "$f" | wc -l)
-              if [ "$open_braces" -eq "$close_braces" ]; then
-                echo "✅ $f — braces balanced ($open_braces)"
-              else
-                echo "❌ $f — braces MISMATCH (open: $open_braces, close: $close_braces)"
-                exit 1
-              fi
-            fi
+          fail=0
+          for f in \
+            ProjectSettings/ProjectVersion.txt \
+            ProjectSettings/EditorBuildSettings.asset \
+            Packages/manifest.json \
+            Assets/Scripts/Core/GameManager.cs \
+            Assets/Scripts/Editor/BuildScript.cs \
+            Assets/Scripts/Runner/RunnerBootstrap.cs \
+            Assets/Scenes/MainMenu.unity \
+            Assets/Scenes/PetSelection.unity \
+            Assets/Scenes/TinaiRunner.unity \
+            docs/deployment/build-yazh.sh
+          do
+            if [ -f "$f" ]; then echo "OK  $f"; else echo "MISSING  $f"; fail=1; fi
           done
-          echo "=== Syntax Check Complete ==="
-
-      - name: Verify ONNX model integrity
-        run: |
-          echo "=== ONNX Model Integrity ==="
-          ML_DIR="Assets/StreamingAssets/MLModels"
-          for model in "$ML_DIR"/yazh-30k*.onnx; do
-            if [ -f "$model" ]; then
-              size=$(stat -c%s "$model" 2>/dev/null || stat -f%z "$model" 2>/dev/null)
-              # ONNX files start with magic bytes "ONNX" or protobuf header
-              header=$(xxd -l 4 "$model" 2>/dev/null | head -1)
-              echo "📦 $(basename "$model"): ${size} bytes | header: $header"
-              if [ "$size" -lt 1000 ]; then
-                echo "❌ Model file suspiciously small: $model"
-                exit 1
-              fi
-            fi
+          # Models are OPTIONAL — the build and the app work without them.
+          for m in Assets/StreamingAssets/MLModels/yazh-30k*.onnx; do
+            [ -f "$m" ] && echo "OK  (optional) $m" || echo "absent (optional) $m"
           done
-          echo "=== Model Check Complete ==="
+          exit $fail
+
+      - name: Check meta/GUID wiring
+        run: |
+          echo "=== Meta/GUID Wiring ==="
+          fail=0
+          # Every asset must have a .meta, every .meta a matching asset.
+          while read -r f; do
+            [ -f "$f.meta" ] || { echo "MISSING META  $f"; fail=1; }
+          done < <(find Assets -type f ! -name "*.meta")
+          while read -r m; do
+            [ -e "${m%.meta}" ] || { echo "ORPHAN META  $m"; fail=1; }
+          done < <(find Assets -name "*.meta")
+          exit $fail
 
   # ──────────────────────────────────────────────
-  # Job 2: Build Android (APK/AAB)
+  # Job 2: Build Android APK (real build — needs Unity license secrets)
   # ──────────────────────────────────────────────
   build-android:
-    name: 'Build Android'
+    name: 'Build Android APK'
     needs: validate
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'android' || inputs.platform == 'both'))
-    
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Cache Unity build
+      - name: Check Unity license secrets
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          if [ -z "$UNITY_LICENSE" ] && { [ -z "$UNITY_EMAIL" ] || [ -z "$UNITY_PASSWORD" ]; }; then
+            echo "::error::Unity license secrets missing. Add UNITY_LICENSE (contents of your .ulf) plus UNITY_EMAIL and UNITY_PASSWORD as repository secrets."
+            echo "::error::Setup guide: docs/deployment/CI_SETUP.md (activation workflow: .github/workflows/activation.yml)"
+            exit 1
+          fi
+          echo "License secrets present."
+
+      - name: Strip ML models (model-less build)
+        if: github.event_name != 'workflow_dispatch' || inputs.include_models != true
+        run: |
+          echo "Building WITHOUT bundled models — app uses scripted Tamil fallback."
+          rm -f Assets/StreamingAssets/MLModels/*.onnx \
+                Assets/StreamingAssets/MLModels/*.onnx.meta \
+                Assets/StreamingAssets/MLModels/*.sentis \
+                Assets/StreamingAssets/MLModels/*.sentis.meta
+          ls -la Assets/StreamingAssets/MLModels/
+
+      - name: Cache Unity Library
         uses: actions/cache@v4
         with:
           path: Library
-          key: Library-Android-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-Android-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
             Library-Android-
             Library-
 
       - name: Build Android APK
         uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
-          projectPath: ${{ env.PROJECT_PATH }}
           targetPlatform: Android
+          buildMethod: BuildScript.BuildAndroidCI
           buildName: Yazh-Android
-          buildsPath: Build/Android
-          androidAppBundle: false
-          androidKeystoreName: ''
-          androidKeyaliasName: ''
-        continue-on-error: true
+          buildsPath: Build
+          androidExportType: androidPackage
 
-      - name: Upload Android build artifact
+      - name: List build output
+        run: ls -lhR Build/ || true
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: Yazh-Android-Build
-          path: Build/Android/
-          retention-days: 7
-
-      - name: Report build status
-        if: always()
-        run: |
-          if [ -d "Build/Android" ] && [ "$(ls -A Build/Android)" ]; then
-            echo "✅ Android build artifacts produced"
-            ls -lh Build/Android/
-          else
-            echo "⚠️ No Android build artifacts (expected in CI without Unity license)"
-            echo "Build script validated successfully"
-          fi
+          name: Yazh-Android-APK
+          path: Build/**/*.apk
+          if-no-files-found: error
+          retention-days: 14
 
   # ──────────────────────────────────────────────
-  # Job 3: Build iOS (Xcode project)
+  # Job 3: iOS Xcode export (manual only)
   # ──────────────────────────────────────────────
   build-ios:
-    name: 'Build iOS'
+    name: 'Build iOS (Xcode project)'
     needs: validate
     runs-on: macos-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && (inputs.platform == 'ios' || inputs.platform == 'both'))
-
+    if: github.event_name == 'workflow_dispatch' && inputs.build_ios == true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           lfs: true
 
-      - name: Cache Unity build
+      - name: Cache Unity Library
         uses: actions/cache@v4
         with:
           path: Library
-          key: Library-iOS-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          key: Library-iOS-${{ hashFiles('Packages/manifest.json', 'ProjectSettings/ProjectVersion.txt') }}
           restore-keys: |
             Library-iOS-
-            Library-
 
       - name: Build iOS Xcode project
         uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+          UNITY_SERIAL: ${{ secrets.UNITY_SERIAL }}
         with:
-          projectPath: ${{ env.PROJECT_PATH }}
           targetPlatform: iOS
           buildName: Yazh-iOS
-          buildsPath: Build/iOS
-        continue-on-error: true
+          buildsPath: Build
 
-      - name: Upload iOS build artifact
+      - name: Upload iOS artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: Yazh-iOS-Build
+          name: Yazh-iOS-Xcode
           path: Build/iOS/
-          retention-days: 7
-
-      - name: Report build status
-        if: always()
-        run: |
-          if [ -d "Build/iOS" ] && [ "$(ls -A Build/iOS)" ]; then
-            echo "✅ iOS build artifacts produced"
-            ls -lhR Build/iOS/ | head -30
-          else
-            echo "⚠️ No iOS build artifacts (expected in CI without Unity license)"
-            echo "Build script validated successfully"
-          fi
+          retention-days: 14
 
   # ──────────────────────────────────────────────
-  # Job 4: Post-build summary
+  # Job 4: Summary
   # ──────────────────────────────────────────────
   summary:
     name: 'Build Summary'
-    needs: [validate, build-android, build-ios]
+    needs: [validate, build-android]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -211,11 +192,8 @@ jobs:
           echo "═══════════════════════════════════════"
           echo "  YAZH-UNITY CI/CD BUILD SUMMARY"
           echo "═══════════════════════════════════════"
-          echo "  Validate:    ${{ needs.validate.result }}"
-          echo "  Android:     ${{ needs.build-android.result }}"
-          echo "  iOS:         ${{ needs.build-ios.result }}"
-          echo "═══════════════════════════════════════"
-          echo "  Commit:      ${{ github.sha }}"
-          echo "  Branch:      ${{ github.ref_name }}"
-          echo "  Trigger:     ${{ github.event_name }}"
+          echo "  Validate:  ${{ needs.validate.result }}"
+          echo "  Android:   ${{ needs.build-android.result }}"
+          echo "  Commit:    ${{ github.sha }}"
+          echo "  Branch:    ${{ github.ref_name }}"
           echo "═══════════════════════════════════════"

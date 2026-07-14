@@ -1,4 +1,6 @@
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 using System.IO;
 using System.Collections.Generic;
@@ -106,6 +108,92 @@ public static class BuildScript
     }
 
     /// <summary>
+    /// Headless CI entry point (GitHub Actions / game-ci):
+    ///   unity -batchmode -executeMethod BuildScript.BuildAndroidCI
+    /// Reads the output path from -customBuildPath (passed by game-ci) or
+    /// -buildPath, builds an APK, and exits 0/1 so the CI job reflects the
+    /// real build result. Works without the ML models — they are optional
+    /// StreamingAssets; the app falls back to scripted Tamil responses.
+    /// </summary>
+    public static void BuildAndroidCI()
+    {
+        string buildPath = GetCommandLineArg("-customBuildPath")
+                        ?? GetCommandLineArg("-buildPath")
+                        ?? Path.Combine("Build", "Android", "Yazh-Android.apk");
+        if (string.IsNullOrEmpty(Path.GetExtension(buildPath)))
+            buildPath += ".apk";
+
+        Debug.Log($"[BuildScript] CI Android build → {buildPath}");
+
+        // Models are optional; only a present-but-tampered model aborts.
+        if (!VerifyAllModelHashes())
+        {
+            Debug.LogError("[BuildScript] [SEC-001] Model hash mismatch. Aborting CI build.");
+            EditorApplication.Exit(1);
+            return;
+        }
+
+        EnsureAndroidIdentity();
+        EditorUserBuildSettings.buildAppBundle = false;   // APK, not AAB
+        PlayerSettings.Android.useCustomKeystore = false; // debug-signed CI artifact
+        PlayerSettings.Android.bundleVersionCode = 1;
+        PlayerSettings.bundleVersion = "0.1.0-prototype";
+
+        string dir = Path.GetDirectoryName(buildPath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        BuildReport report = BuildPipeline.BuildPlayer(
+            GetExistingScenes(), buildPath, BuildTarget.Android, BuildOptions.None);
+
+        BuildSummary summary = report.summary;
+        Debug.Log($"[BuildScript] CI build result: {summary.result} | " +
+                  $"size: {summary.totalSize / 1024 / 1024}MB | errors: {summary.totalErrors}");
+
+        EditorApplication.Exit(summary.result == BuildResult.Succeeded ? 0 : 1);
+    }
+
+    /// <summary>
+    /// Guarantee a Play-Store-valid application identifier and product name.
+    /// The hand-authored ProjectSettings has neither, and Unity's fallback
+    /// (com.DefaultCompany.yazh-unity) is not a valid Android package name.
+    /// </summary>
+    private static void EnsureAndroidIdentity()
+    {
+        if (string.IsNullOrWhiteSpace(PlayerSettings.productName)
+            || PlayerSettings.productName.Contains("-"))
+            PlayerSettings.productName = "Yazh";
+        if (string.IsNullOrWhiteSpace(PlayerSettings.companyName)
+            || PlayerSettings.companyName == "DefaultCompany")
+            PlayerSettings.companyName = "Yazhi";
+
+        string id = PlayerSettings.GetApplicationIdentifier(NamedBuildTarget.Android);
+        if (!IsValidAndroidPackage(id))
+        {
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, "org.yazhi.yazh");
+            Debug.Log($"[BuildScript] Application identifier '{id}' invalid → org.yazhi.yazh");
+        }
+    }
+
+    private static bool IsValidAndroidPackage(string id)
+    {
+        return !string.IsNullOrEmpty(id) &&
+               System.Text.RegularExpressions.Regex.IsMatch(
+                   id, @"^[a-zA-Z][a-zA-Z0-9_]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$");
+    }
+
+    private static string GetCommandLineArg(string name)
+    {
+        string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == name && !args[i + 1].StartsWith("-"))
+                return args[i + 1];
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Returns only scenes that actually exist on disk
     /// Prevents build failures when scenes haven't been created yet
     /// </summary>
@@ -127,15 +215,19 @@ public static class BuildScript
     }
 
     /// <summary>
-    /// SEC-001: Verify all ONNX model hashes before build
-    /// Computes SHA-256 for each model file in ONNX_MODEL_HASHES
-    /// Returns false if any hash mismatches (model may be corrupted or tampered)
-    /// This is a build-time security gate to prevent shipping compromised models
+    /// SEC-001: Verify ONNX model hashes before build.
+    /// Models are OPTIONAL — a missing model file logs a warning and the
+    /// build proceeds (the app runs its scripted-dialogue fallback without
+    /// them). A model that is present but hash-mismatched always fails: that
+    /// means corruption or tampering, and we never ship it.
+    /// Set env YAZH_REQUIRE_MODELS=1 to make missing models fatal too
+    /// (for founder/release builds that must bundle the AI).
     /// </summary>
     private static bool VerifyAllModelHashes()
     {
         Debug.Log("[BuildScript] [SEC-001] Verifying ONNX model integrity...");
 
+        bool requireModels = System.Environment.GetEnvironmentVariable("YAZH_REQUIRE_MODELS") == "1";
         bool allValid = true;
         foreach (var kvp in ONNX_MODEL_HASHES)
         {
@@ -144,8 +236,15 @@ public static class BuildScript
 
             if (!File.Exists(modelPath))
             {
-                Debug.LogError($"[BuildScript] [SEC-001] Model file not found: {modelPath}");
-                allValid = false;
+                if (requireModels)
+                {
+                    Debug.LogError($"[BuildScript] [SEC-001] Model file REQUIRED but not found: {modelPath}");
+                    allValid = false;
+                }
+                else
+                {
+                    Debug.LogWarning($"[BuildScript] [SEC-001] Model absent (optional): {modelPath} — building without it.");
+                }
                 continue;
             }
 

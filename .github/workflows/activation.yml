@@ -1,0 +1,31 @@
+name: Unity License Activation (one-time)
+
+# Run this ONCE (manually) to obtain the activation file for CI:
+#   1. Actions → "Unity License Activation" → Run workflow
+#   2. Download the Unity_v6000.x.alf artifact
+#   3. Upload it at https://license.unity3d.com/manual → get Unity_v6000.x.ulf
+#   4. Save the .ulf FILE CONTENTS as repository secret UNITY_LICENSE
+#      (plus UNITY_EMAIL and UNITY_PASSWORD for your Unity account)
+# Full guide: docs/deployment/CI_SETUP.md
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  request-activation-file:
+    name: Request .alf activation file
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Request manual activation file
+        id: getManualLicenseFile
+        uses: game-ci/unity-request-activation-file@v2
+
+      - name: Upload activation file artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Unity-Activation-File
+          path: ${{ steps.getManualLicenseFile.outputs.filePath }}
+          retention-days: 3
