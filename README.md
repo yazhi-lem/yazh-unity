@@ -9,11 +9,11 @@
 
 ## Game Overview
 
-Intelligent pet survival game in XR biomes. Child chats with pet in Tamil. Pet thinks natively in Tamil (no translation).
+**Pivot (Jul 2026):** Endless runner (Subway Surfers-style). The child's Yazh pet runs through the five **tinai** landscapes of Sangam literature, cycling endlessly: குறிஞ்சி Kurinji (mountains) → முல்லை Mullai (forest) → மருதம் Marutham (farmland) → நெய்தல் Neithal (seashore) → பாலை Palai (wasteland). Child still chats with the pet in Tamil between runs; pet thinks natively in Tamil (no translation).
 
-**Pets:** Kuruvi (bird), Maan (deer), Yanai (elephant), Pulliruvi (cat)  
-**Biomes:** Sangam Kaadu (forest), Oorru (village), Kulaathanku (palace), Karai Parai (beach)  
-**Mechanic:** 7-day survival challenge (resources, weather, pet AI)
+**Runner pets (each with a distinct ability):** Kuruvi (double jump), Maan (high jump), Yanai (smashes obstacles), Pulliruvi (collectible magnet)
+**Terrain:** Tinai system endless — see [docs/gameplay/ENDLESS_RUNNER_DESIGN.md](docs/gameplay/ENDLESS_RUNNER_DESIGN.md)
+**Care loop:** Runs feed the pet's mood and bond (YazhLife); a tired pet runs slower
 
 ---
 
@@ -34,6 +34,7 @@ yazh-unity/
 │   │   ├── Audio/             # AudioSyncManager (TTS + SFX)
 │   │   ├── Core/              # GameManager, DialogueSystem, PetManager
 │   │   ├── Gameplay/          # SurvivalSystem, YazhLife
+│   │   ├── Runner/            # Tinai endless runner (core loop)
 │   │   ├── UI/                # UIStyles (Material Design)
 │   │   ├── Editor/            # BuildScript (CI/CD automation)
 │   │   └── WebGL/             # Web fallback build
@@ -108,7 +109,10 @@ See [docs/SETUP.md](docs/SETUP.md) for full setup guide.
 | AI Inference | `Assets/Scripts/AI/YazhInferenceEngine.cs` | — | ONNX Tamil inference (Barracuda) |
 | AR Session | `Assets/Scripts/AR/ARSessionManager.cs` | — | ARKit/ARCore lifecycle |
 | Audio | `Assets/Scripts/Audio/AudioSyncManager.cs` | — | Piper TTS + sound effects |
-| Survival | `Assets/Scripts/Gameplay/SurvivalSystem.cs` | 152 | Resource management |
+| Tinai Terrain | `Assets/Scripts/Runner/EndlessTerrainGenerator.cs` | — | Endless tinai track (5 Sangam landscapes) |
+| Runner | `Assets/Scripts/Runner/YazhRunnerController.cs` | — | Pet runner: lanes, jump, slide, abilities |
+| Run Manager | `Assets/Scripts/Runner/RunnerGameManager.cs` | — | Speed ramp, score, YazhLife rewards |
+| Survival | `Assets/Scripts/Gameplay/SurvivalSystem.cs` | 152 | Resource management (legacy loop) |
 | Pet Life | `Assets/Scripts/Gameplay/YazhLife.cs` | 231 | Pet lifecycle + survival state |
 | UI Styles | `Assets/Scripts/UI/UIStyles.cs` | 107 | Material Design system |
 | Build CI/CD | `Assets/Scripts/Editor/BuildScript.cs` | 192 | Automated Debug/Release builds |

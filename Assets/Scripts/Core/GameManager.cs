@@ -22,6 +22,7 @@ public class GameManager : MonoBehaviour
     {
         Onboarding,
         MainGame,
+        Runner,     // Tinai endless run (Subway Surfers-style core loop)
         Paused,
         Challenge,
         Settings,
@@ -92,6 +93,9 @@ public class GameManager : MonoBehaviour
             case GameState.MainGame:
                 OnStateMainGame();
                 break;
+            case GameState.Runner:
+                OnStateRunner();
+                break;
             case GameState.Challenge:
                 OnStateChallenge();
                 break;
@@ -123,6 +127,22 @@ public class GameManager : MonoBehaviour
             survivalSystem.StartDaySimulation();
         }
         Time.timeScale = 1f;
+    }
+
+    private void OnStateRunner()
+    {
+        Debug.Log("[GameManager] Entering Runner state — tinai endless run. ஓடு!");
+        Time.timeScale = 1f;
+        UnityEngine.SceneManagement.SceneManager.LoadScene("TinaiRunner");
+    }
+
+    /// <summary>
+    /// Start the tinai endless run with the currently selected pet.
+    /// Call from the main-menu "ஓடு" (Run) button.
+    /// </summary>
+    public void StartEndlessRun()
+    {
+        SetGameState(GameState.Runner);
     }
 
     private void OnStateChallenge()
