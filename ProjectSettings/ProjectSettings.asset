@@ -48,6 +48,7 @@ ProjectSettings:
     enableHeadlessMode: 0
   facebookSdkVersion: 7.9.4
   apiCompatibilityLevel: 6
+  activeInputHandler: 2
   cloudServiceModule:
     unetAuthority: ''
   bindingFlags: 0

@@ -1,7 +1,10 @@
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 using System.Collections;
+#if UNITY_ANDROID
 using UnityEngine.Android;
+#endif
 
 /// <summary>
 /// ARSetup: Initializes AR Foundation for mobile (iOS ARKit / Android ARCore)
@@ -17,7 +20,7 @@ public class ARSetup : MonoBehaviour
 
     [SerializeField] private bool enablePlaneDetection = true;
     [SerializeField] private bool enableLightEstimation = true;
-    [SerializeField] private UnityEngine.XR.ARFoundation.ARPlaneDetectionMode planeDetectionMode = UnityEngine.XR.ARFoundation.ARPlaneDetectionMode.Horizontal;
+    [SerializeField] private PlaneDetectionMode planeDetectionMode = PlaneDetectionMode.Horizontal;
 
     private bool isARSupported = false;
     private bool cameraPermissionGranted = false;
@@ -111,26 +114,26 @@ public class ARSetup : MonoBehaviour
         yield return null;
 
         #elif UNITY_ANDROID
-        // Android: Request runtime permission explicitly
+        // Android: Request runtime permission explicitly.
+        // Permission.RequestUserPermission returns void — poll authorization
+        // with a timeout instead (the OS dialog pauses the app while shown).
         Debug.Log("[AR] [SEC-011] Android: Requesting CAMERA permission...");
-        var permissionRequest = Permission.RequestUserPermission(Permission.Camera);
+        if (!Permission.HasUserAuthorizedPermission(Permission.Camera))
+        {
+            Permission.RequestUserPermission(Permission.Camera);
 
-        // Wait for permission response
-        while (!permissionRequest.isDone)
-        {
-            yield return new WaitForSeconds(0.1f);
+            float timeout = 30f;
+            while (!Permission.HasUserAuthorizedPermission(Permission.Camera) && timeout > 0f)
+            {
+                timeout -= 0.1f;
+                yield return new WaitForSeconds(0.1f);
+            }
         }
 
-        if (permissionRequest.status == PermissionStatus.Granted)
-        {
-            Debug.Log("[AR] [SEC-011] Android: Camera permission GRANTED");
-            cameraPermissionGranted = true;
-        }
-        else
-        {
-            Debug.LogWarning("[AR] [SEC-011] Android: Camera permission DENIED");
-            cameraPermissionGranted = false;
-        }
+        cameraPermissionGranted = Permission.HasUserAuthorizedPermission(Permission.Camera);
+        Debug.Log(cameraPermissionGranted
+            ? "[AR] [SEC-011] Android: Camera permission GRANTED"
+            : "[AR] [SEC-011] Android: Camera permission DENIED");
 
         #else
         cameraPermissionGranted = true;
@@ -253,21 +256,20 @@ public class ARSetup : MonoBehaviour
         // Configure AR components
         if (arPlaneManager != null)
         {
-            arPlaneManager.detectionMode = enablePlaneDetection ? planeDetectionMode : UnityEngine.XR.ARFoundation.ARPlaneDetectionMode.None;
+            arPlaneManager.requestedDetectionMode = enablePlaneDetection ? planeDetectionMode : PlaneDetectionMode.None;
             Debug.Log($"[AR] Plane detection: {planeDetectionMode}");
         }
 
         if (arCameraManager != null && enableLightEstimation)
         {
             // Light estimation via ARCameraManager (AR Foundation 5+)
-            arCameraManager.requestedLightEstimation = UnityEngine.XR.ARFoundation.LightEstimationMode.AmbientIntensity;
+            arCameraManager.requestedLightEstimation = LightEstimation.AmbientIntensity;
             Debug.Log("[AR] Light estimation enabled (AmbientIntensity)");
         }
 
         if (arOcclusionManager != null)
         {
-            arOcclusionManager.requestedOcclusionPreferenceMode =
-                UnityEngine.XR.ARFoundation.OcclusionPreferenceMode.PreferHumanOcclusion;
+            arOcclusionManager.requestedOcclusionPreferenceMode = OcclusionPreferenceMode.PreferHumanOcclusion;
             Debug.Log("[AR] Occlusion (human segmentation) enabled");
             Debug.Log("[AR] [SEC-011] Note: Human segmentation processes camera data on-device only (no cloud upload)");
         }
@@ -312,10 +314,8 @@ public class ARSetup : MonoBehaviour
     }
 }
 
-// NOTE: AR Foundation provides these enums natively:
-//   UnityEngine.XR.ARFoundation.ARPlaneDetectionMode
-//   UnityEngine.XR.ARFoundation.LightEstimationMode
-//   UnityEngine.XR.ARFoundation.OcclusionPreferenceMode
-// The local enum definitions below are removed to avoid compilation conflicts.
-// ARSetup.cs now uses the AR Foundation enums directly.
+// NOTE: AR Foundation 6 enum locations used above:
+//   UnityEngine.XR.ARSubsystems.PlaneDetectionMode
+//   UnityEngine.XR.ARFoundation.LightEstimation
+//   UnityEngine.XR.ARSubsystems.OcclusionPreferenceMode
 // See: https://docs.unity3d.com/Packages/com.unity.xr.arfoundation@latest

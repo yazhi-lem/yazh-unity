@@ -358,14 +358,12 @@ public class YazhInferenceManager : MonoBehaviour
 
     private long EstimateModelSize(Model model)
     {
-        // Rough estimation: sum each constant tensor's element count * 4 bytes (float32)
+        // Rough estimation: sum each constant tensor's element count * 4 bytes (float32).
+        // TensorShape is not enumerable — use its total element count instead.
         long bytes = 0;
         foreach (var constant in model.constants)
         {
-            long elementCount = 1;
-            foreach (var dim in constant.shape)
-                elementCount *= dim;
-            bytes += elementCount * 4;
+            bytes += (long)constant.shape.length * 4;
         }
         return bytes;
     }

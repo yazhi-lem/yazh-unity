@@ -47,8 +47,8 @@ public class DialogueSystem : MonoBehaviour
 
     private void Start()
     {
-        yazhEngine = GetComponent<YazhInferenceEngine>() ?? FindObjectOfType<YazhInferenceEngine>();
-        audioSync = GetComponent<AudioSyncManager>() ?? FindObjectOfType<AudioSyncManager>();
+        yazhEngine = GetComponent<YazhInferenceEngine>() ?? FindFirstObjectByType<YazhInferenceEngine>();
+        audioSync = GetComponent<AudioSyncManager>() ?? FindFirstObjectByType<AudioSyncManager>();
     }
 
     /// <summary>
@@ -95,11 +95,32 @@ public class DialogueSystem : MonoBehaviour
         return context;
     }
 
+    // Scripted fallbacks when the ML model is not bundled/loaded (model-less builds).
+    private static readonly string[] FallbackResponses =
+    {
+        "சரி! ஓடலாம் வா!",              // Okay! Let's run!
+        "நான் உன் கூடவே இருக்கேன்.",     // I'm right here with you.
+        "அது நல்ல யோசனை!",              // That's a good idea!
+        "இன்னும் கொஞ்சம் விளையாடலாமா?"   // Shall we play a bit more?
+    };
+
     private async Task<DialogueResponse> InferResponse(string input, string context)
     {
-        // Call Yazh 30K model via Barracuda
-        var tokens = await yazhEngine.InferenceAsync(input, context);
-        var tamilResponse = yazhEngine.DecodeTokens(tokens);
+        string tamilResponse = null;
+
+        // Inference via the on-device Yazh 30K model when available.
+        if (yazhEngine != null)
+        {
+            var tokens = await yazhEngine.InferenceAsync(input, context);
+            tamilResponse = yazhEngine.DecodeTokens(tokens);
+        }
+
+        // Model missing or returned nothing → scripted fallback keeps the pet alive.
+        if (string.IsNullOrWhiteSpace(tamilResponse))
+        {
+            tamilResponse = FallbackResponses[Random.Range(0, FallbackResponses.Length)];
+            Debug.Log("[DialogueSystem] Model unavailable — using scripted fallback response.");
+        }
 
         // Generate TTS audio (placeholder)
         AudioClip audioClip = null; // TODO: actual TTS synthesis

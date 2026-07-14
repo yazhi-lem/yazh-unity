@@ -35,32 +35,33 @@ public class YazhInferenceEngine : MonoBehaviour
     /// </summary>
     public async Task InitializeAsync(string modelPath)
     {
-        await Task.Run(() =>
+        // Unity APIs (Resources.Load, ModelLoader, Worker) are main-thread-only,
+        // so initialization runs on the main thread; yield once to stay awaitable.
+        await Task.Yield();
+
+        try
         {
-            try
+            // Load ONNX model via Inference Engine
+            ModelAsset modelAsset = Resources.Load<ModelAsset>(modelPath);
+            if (modelAsset == null)
             {
-                // Load ONNX model via Inference Engine
-                ModelAsset modelAsset = Resources.Load<ModelAsset>(modelPath);
-                if (modelAsset == null)
-                {
-                    Debug.LogError($"[YazhInferenceEngine] Model not found: {modelPath}");
-                    return;
-                }
-
-                // Build the runtime model and create a worker for inference
-                Model model = ModelLoader.Load(modelAsset);
-                worker = new Worker(model, BackendType.GPUCompute);
-
-                LoadTamilTokenizer();
-                isModelReady = true;
-
-                Debug.Log("[YazhInferenceEngine] Model initialized successfully");
+                Debug.LogError($"[YazhInferenceEngine] Model not found: {modelPath}");
+                return;
             }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[YazhInferenceEngine] Initialization failed: {ex.Message}");
-            }
-        });
+
+            // Build the runtime model and create a worker for inference
+            Model model = ModelLoader.Load(modelAsset);
+            worker = new Worker(model, BackendType.GPUCompute);
+
+            LoadTamilTokenizer();
+            isModelReady = true;
+
+            Debug.Log("[YazhInferenceEngine] Model initialized successfully");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[YazhInferenceEngine] Initialization failed: {ex.Message}");
+        }
     }
 
     private void LoadTamilTokenizer()
@@ -88,7 +89,8 @@ public class YazhInferenceEngine : MonoBehaviour
 
         var tokens = new List<int>();
 
-        await Task.Run(() =>
+        // Worker scheduling must happen on the main thread (Unity Inference Engine).
+        await Task.Yield();
         {
             try
             {
@@ -126,7 +128,7 @@ public class YazhInferenceEngine : MonoBehaviour
             {
                 Debug.LogError($"[YazhInferenceEngine] Inference error: {ex.Message}");
             }
-        });
+        }
 
         return tokens;
     }
