@@ -13,6 +13,7 @@ public static class BuildScript
     {
         "Assets/Scenes/MainMenu.unity",
         "Assets/Scenes/PetSelection.unity",
+        "Assets/Scenes/TinaiRunner.unity",
         "Assets/Scenes/BiomeArena.unity"
     };
 

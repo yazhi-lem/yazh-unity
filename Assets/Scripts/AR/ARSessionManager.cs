@@ -1,5 +1,7 @@
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
+using System.Collections.Generic;
 
 /// <summary>
 /// Manages AR session, plane detection, and pet placement.
@@ -28,9 +30,9 @@ public class ARSessionManager : MonoBehaviour
         }
 
         // Detect planes for pet placement
-        if (arPlaneManager != null && arPlaneManager.trackablesCount > 0)
+        if (arPlaneManager != null && arPlaneManager.trackables.count > 0)
         {
-            Debug.Log($"[ARSessionManager] Planes detected: {arPlaneManager.trackablesCount}");
+            Debug.Log($"[ARSessionManager] Planes detected: {arPlaneManager.trackables.count}");
         }
     }
 
@@ -41,8 +43,8 @@ public class ARSessionManager : MonoBehaviour
         if (raycastManager == null)
             return false;
 
-        var hits = new UnityEngine.XR.ARSubsystems.ARRaycastHit[1];
-        if (raycastManager.Raycast(screenPos, hits, UnityEngine.XR.ARSubsystems.TrackableType.Planes))
+        var hits = new List<ARRaycastHit>();
+        if (raycastManager.Raycast(screenPos, hits, TrackableType.Planes) && hits.Count > 0)
         {
             var hit = hits[0];
             worldPos = hit.pose.position;

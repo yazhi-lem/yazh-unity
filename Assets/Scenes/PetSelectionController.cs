@@ -95,8 +95,9 @@ public class PetSelectionController : MonoBehaviour
             return;
         }
 
-        Debug.Log("[PetSelection] Confirmed: " + selectedPet + " — loading BiomeArena");
-        SceneManager.LoadScene("BiomeArena");
+        // Endless-runner pivot: confirming a pet starts a tinai run.
+        Debug.Log("[PetSelection] Confirmed: " + selectedPet + " — loading TinaiRunner");
+        SceneManager.LoadScene("TinaiRunner");
     }
 
     public void OnBackClicked()

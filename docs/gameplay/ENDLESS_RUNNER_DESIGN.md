@@ -77,14 +77,15 @@ The pet chosen in PetSelection is the runner, and each pet plays differently:
 
 ## How to play it in the editor
 
-1. Create a new empty scene, save as `Assets/Scenes/TinaiRunner.unity`.
-2. Add an empty GameObject; attach **RunnerBootstrap**.
-3. Press Play. (Optionally set *Pet Type Override* to `kuruvi` / `maan` /
-   `yanai` / `pulliruvi`.)
+Open `Assets/Scenes/TinaiRunner.unity` and press Play — the scene ships
+with a RunnerBootstrap GameObject that assembles everything at runtime.
+(Optionally set *Pet Type Override* on it to `kuruvi` / `maan` / `yanai` /
+`pulliruvi`.)
 
-`GameManager.StartEndlessRun()` loads the `TinaiRunner` scene by name —
-add the scene to Build Settings and wire an "ஓடு" (Run) button in the main
-menu to it.
+Flow wiring: MainMenu → PetSelection → **TinaiRunner** (confirming a pet
+starts a run). All four scenes are registered in
+`ProjectSettings/EditorBuildSettings.asset` and in `BuildScript.Scenes`.
+`GameManager.StartEndlessRun()` also loads the scene by name.
 
 ## What we kept from the survival build
 

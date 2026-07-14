@@ -149,4 +149,9 @@ public class SurvivalSystem : MonoBehaviour
         dayCounter++;
         StartDaySimulation();
     }
+
+    public int GetCurrentDay() => dayCounter;
+
+    /// <summary>Current weather type, or empty until the first day simulation runs.</summary>
+    public string GetWeatherName() => currentWeather?.weatherType ?? "";
 }

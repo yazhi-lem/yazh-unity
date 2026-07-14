@@ -47,8 +47,8 @@ public class DialogueSystem : MonoBehaviour
 
     private void Start()
     {
-        yazhEngine = GetComponent<YazhInferenceEngine>() ?? FindObjectOfType<YazhInferenceEngine>();
-        audioSync = GetComponent<AudioSyncManager>() ?? FindObjectOfType<AudioSyncManager>();
+        yazhEngine = GetComponent<YazhInferenceEngine>() ?? FindFirstObjectByType<YazhInferenceEngine>();
+        audioSync = GetComponent<AudioSyncManager>() ?? FindFirstObjectByType<AudioSyncManager>();
     }
 
     /// <summary>

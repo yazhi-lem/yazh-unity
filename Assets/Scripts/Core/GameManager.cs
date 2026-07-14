@@ -202,6 +202,50 @@ public class GameManager : MonoBehaviour
     public int GetChallengeDay() => challengeDay;
     public YazhLife GetYazhLife() => yazhLife;
 
+    // ─── Scene-controller API (BiomeArenaController / PetSelectionController) ─
+
+    /// <summary>Selected pet type; assignable from selection UI without a state change.</summary>
+    public string selectedPet
+    {
+        get => selectedPetType;
+        set => selectedPetType = value;
+    }
+
+    /// <summary>Begin the main game with the given pet (scene-controller entry point).</summary>
+    public void StartGame(string petType)
+    {
+        OnPetSelected(petType);
+    }
+
+    // Pet stat getters (0–100), backed by YazhLife.
+    public float GetHealth()    => yazhLife != null ? yazhLife.GetStats().vitality : 0f;
+    public float GetEnergy()    => yazhLife != null ? yazhLife.GetStats().energy   : 0f;
+    public float GetHappiness() => yazhLife != null ? yazhLife.GetStats().mood     : 0f;
+
+    /// <summary>Hunger as fullness 0–100, from the survival food stock.</summary>
+    public float GetHunger()
+    {
+        var food = survivalSystem != null ? survivalSystem.GetResource("food") : null;
+        return food != null && food.maxCapacity > 0
+            ? (float)food.current / food.maxCapacity * 100f
+            : 0f;
+    }
+
+    // Resource getters, backed by SurvivalSystem.
+    public int GetWater()   => GetResourceCount("water");
+    public int GetFood()    => GetResourceCount("food");
+    public int GetShelter() => GetResourceCount("shelter");
+    public int GetHerb()    => 0; // herbs not yet modelled in SurvivalSystem
+
+    private int GetResourceCount(string type)
+    {
+        var resource = survivalSystem != null ? survivalSystem.GetResource(type) : null;
+        return resource?.current ?? 0;
+    }
+
+    public int GetCurrentDay() => survivalSystem != null ? survivalSystem.GetCurrentDay() : 1;
+    public string GetWeatherName() => survivalSystem != null ? survivalSystem.GetWeatherName() : "";
+
     // ─── Life event handlers ──────────────────────────────────────────────────
 
     private void OnPetPhaseChanged(YazhLife.LifePhase phase)
