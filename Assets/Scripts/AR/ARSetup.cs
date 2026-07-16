@@ -285,11 +285,11 @@ public class ARSetup : MonoBehaviour
     private void Update()
     {
         // Monitor AR session state
-        if (arSession != null && arSession.state == ARSessionState.SessionInitializing)
+        if (arSession != null && ARSession.state == ARSessionState.SessionInitializing)
         {
             Debug.Log("[AR] Session initializing...");
         }
-        else if (arSession != null && arSession.state == ARSessionState.SessionTracking)
+        else if (arSession != null && ARSession.state == ARSessionState.SessionTracking)
         {
             // AR is running smoothly
         }
@@ -298,7 +298,7 @@ public class ARSetup : MonoBehaviour
     public bool IsARReady()
     {
         return cameraPermissionGranted && parentalConsentGranted &&
-               arSession != null && arSession.state == ARSessionState.SessionTracking;
+               arSession != null && ARSession.state == ARSessionState.SessionTracking;
     }
 
     public bool IsCameraPermissionGranted() => cameraPermissionGranted;
