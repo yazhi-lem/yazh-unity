@@ -4,6 +4,7 @@
     "com.unity.xr.arfoundation": "6.0.5",
     "com.unity.xr.arcore": "6.0.5",
     "com.unity.xr.arkit": "6.0.5",
+    "com.unity.xr.management": "4.7.0",
     "com.unity.ugui": "2.0.0",
     "com.unity.inputsystem": "1.19.0",
     "com.unity.modules.androidjni": "1.0.0",
