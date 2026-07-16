@@ -2,8 +2,8 @@
   "name": "Yazh XR Pet",
   "version": "0.1.0",
   "displayVersion": "0.1.0-alpha",
-  "unity": "2022.3",
-  "unityRelease": "22f1",
+  "unity": "6000.5",
+  "unityRelease": "4f1",
   "description": "Tamil-First Intelligent Pet Survival XR App. On-device Yazh 30K LLM model, ARCore/ARKit support, Sangam-inspired biomes.",
   "author": "Yazhi Founder",
   "category": "XR/AR"
