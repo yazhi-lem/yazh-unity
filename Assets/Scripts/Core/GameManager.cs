@@ -65,8 +65,9 @@ public class GameManager : MonoBehaviour
 
     private async void Start()
     {
-        // Load Yazh 30K model asynchronously
-        await yazhEngine.InitializeAsync("Assets/Models/AI/yazh_30k.onnx");
+        // Load Yazh 30K model asynchronously.
+        // Path is relative to Assets/StreamingAssets/ (see YazhInferenceEngine.InitializeAsync).
+        await yazhEngine.InitializeAsync("MLModels/yazh-30k-int8.onnx");
         
         // AR Session management
         if (arSession != null)
