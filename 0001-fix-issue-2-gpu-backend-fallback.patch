@@ -1,0 +1,128 @@
+From 7f7345a931e80ec93adc8f246b75fe030944c941 Mon Sep 17 00:00:00 2001
+From: Claude <claude@anthropic.com>
+Date: Wed, 29 Jul 2026 07:05:10 +0000
+Subject: [PATCH] fix(ai): add CPU fallback for AI inference backend (Issue #2)
+
+Both YazhInferenceEngine and YazhInferenceManager hardcoded
+new Worker(model, BackendType.GPUCompute) with a comment claiming
+'use GPU if available; fall back to CPU' that no code actually
+implemented. BackendType.GPUCompute needs compute-shader support,
+which isn't guaranteed across the app's stated min-spec (Android 7+ /
+iOS 12+), risking a crash or silent inference failure on low-end
+devices.
+
+Adds YazhBackendSelector, a small shared helper used by both classes:
+- SelectBackend() picks GPUCompute when SystemInfo.supportsComputeShaders
+  is true, otherwise CPU.
+- CreateWorkerSafe() also retries once on CPU if Worker construction
+  throws on the preferred backend, covering devices that misreport
+  compute-shader support.
+
+Centralizing this in one helper (rather than duplicating the logic in
+both classes) is a small step toward Issue #3 as well, though the two
+classes are still otherwise separate implementations.
+
+Does not address Issue #3 (duplicate inference implementations) or
+the placeholder model weights noted in Issue #1 -- tracked separately.
+---
+ Assets/Scripts/AI/YazhBackendSelector.cs  | 54 +++++++++++++++++++++++
+ Assets/Scripts/AI/YazhInferenceEngine.cs  |  5 ++-
+ Assets/Scripts/AI/YazhInferenceManager.cs |  5 ++-
+ 3 files changed, 60 insertions(+), 4 deletions(-)
+ create mode 100644 Assets/Scripts/AI/YazhBackendSelector.cs
+
+diff --git a/Assets/Scripts/AI/YazhBackendSelector.cs b/Assets/Scripts/AI/YazhBackendSelector.cs
+new file mode 100644
+index 0000000..efcedc0
+--- /dev/null
++++ b/Assets/Scripts/AI/YazhBackendSelector.cs
+@@ -0,0 +1,54 @@
++using UnityEngine;
++using Unity.InferenceEngine;
++
++/// <summary>
++/// FIX (Issue #2): both YazhInferenceEngine and YazhInferenceManager
++/// previously hardcoded `new Worker(model, BackendType.GPUCompute)`, with a
++/// comment claiming "use GPU if available; fall back to CPU" that no code
++/// actually implemented. BackendType.GPUCompute requires compute-shader
++/// support (Vulkan/Metal); on devices at the low end of the app's stated
++/// min-spec (Android 7+ / iOS 12+) that support isn't guaranteed, so Worker
++/// construction could throw or inference could silently fail with no
++/// recovery path.
++///
++/// This centralizes the "GPU if supported, else CPU" decision so both
++/// inference classes share one tested implementation instead of two copies
++/// that can drift (see Issue #3).
++/// </summary>
++public static class YazhBackendSelector
++{
++    /// <summary>
++    /// Picks BackendType.GPUCompute when the device reports compute-shader
++    /// support, otherwise falls back to BackendType.CPU. Never throws.
++    /// </summary>
++    public static BackendType SelectBackend(string logTag = "[Yazh AI]")
++    {
++        bool gpuSupported = SystemInfo.supportsComputeShaders;
++
++        BackendType backend = gpuSupported ? BackendType.GPUCompute : BackendType.CPU;
++        Debug.Log($"{logTag} Backend selected: {backend} " +
++                   $"(supportsComputeShaders={gpuSupported}, device={SystemInfo.deviceModel}, gfx={SystemInfo.graphicsDeviceType})");
++
++        return backend;
++    }
++
++    /// <summary>
++    /// Creates a Worker for the given model, trying the preferred backend
++    /// first and retrying on CPU once if construction throws (covers
++    /// devices that misreport compute-shader support).
++    /// </summary>
++    public static Worker CreateWorkerSafe(Model model, string logTag = "[Yazh AI]")
++    {
++        BackendType backend = SelectBackend(logTag);
++
++        try
++        {
++            return new Worker(model, backend);
++        }
++        catch (System.Exception ex) when (backend != BackendType.CPU)
++        {
++            Debug.LogWarning($"{logTag} Worker construction failed on {backend} ({ex.Message}); retrying on CPU.");
++            return new Worker(model, BackendType.CPU);
++        }
++    }
++}
+diff --git a/Assets/Scripts/AI/YazhInferenceEngine.cs b/Assets/Scripts/AI/YazhInferenceEngine.cs
+index 3bde02d..7d8f752 100644
+--- a/Assets/Scripts/AI/YazhInferenceEngine.cs
++++ b/Assets/Scripts/AI/YazhInferenceEngine.cs
+@@ -50,8 +50,9 @@ public class YazhInferenceEngine : MonoBehaviour
+             }
+ 
+             // Build the runtime model and create a worker for inference
+-            Model model = ModelLoader.Load(modelAsset);
+-            worker = new Worker(model, BackendType.GPUCompute);
++            // Backend selection with CPU fallback for devices lacking
++            // compute-shader support (see YazhBackendSelector, Issue #2).
++            worker = YazhBackendSelector.CreateWorkerSafe(model, "[YazhInferenceEngine]");
+ 
+             LoadTamilTokenizer();
+             isModelReady = true;
+diff --git a/Assets/Scripts/AI/YazhInferenceManager.cs b/Assets/Scripts/AI/YazhInferenceManager.cs
+index 3f86997..bf19842 100644
+--- a/Assets/Scripts/AI/YazhInferenceManager.cs
++++ b/Assets/Scripts/AI/YazhInferenceManager.cs
+@@ -85,8 +85,9 @@ public class YazhInferenceManager : MonoBehaviour
+         // Set inference worker backend (CPU for mobile)
+         if (isModelReady)
+         {
+-            // For production: use GPU if available; fall back to CPU
+-            inferenceWorker = new Worker(yazhModel, BackendType.GPUCompute);
++            // Backend selection with CPU fallback for devices lacking
++            // compute-shader support (see YazhBackendSelector, Issue #2).
++            inferenceWorker = YazhBackendSelector.CreateWorkerSafe(yazhModel, "[Yazh AI]");
+             Debug.Log("[Yazh AI] Inference worker initialized");
+ 
+             // Run warm-up inference to prime the model
+-- 
+2.43.0
+
