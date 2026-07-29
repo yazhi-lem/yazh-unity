@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using Unity.InferenceEngine;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -10,17 +11,41 @@ using System.Threading.Tasks;
 ///
 /// Uses Unity's Inference Engine (formerly Sentis / Barracuda successor).
 /// Package: com.unity.ai.inference — see Packages/manifest.json
+///
+/// FIX (Issue #1): previously this class loaded the model via
+/// Resources.Load&lt;ModelAsset&gt;(modelPath), which silently returned null for
+/// any StreamingAssets-relative path (Resources.Load only resolves assets
+/// placed under a Resources/ folder, with no extension). GameManager passed
+/// "Assets/Models/AI/yazh_30k.onnx", which doesn't exist anywhere in the
+/// project, so isModelReady was permanently false and every conversation
+/// silently fell back to DialogueSystem's 4 scripted lines.
+///
+/// This now loads directly from Assets/StreamingAssets/MLModels (same
+/// location YazhInferenceManager already uses), and the tokenizer is a real
+/// Tamil Unicode-range char tokenizer instead of two never-populated,
+/// dead dictionaries.
+///
+/// NOTE: the bundled .onnx files under StreamingAssets/MLModels are still
+/// placeholder weights (not real trained weights) — that's a separate,
+/// follow-up concern (no amount of code-path fixing can produce real Tamil
+/// completions from a placeholder file). With real weights in place, this
+/// path is now correct end-to-end. Until then, ModelLoader.Load will fail
+/// on the placeholder bytes, which is caught below and falls back cleanly,
+/// same as before.
 /// </summary>
 public class YazhInferenceEngine : MonoBehaviour
 {
     public static YazhInferenceEngine Instance { get; private set; }
 
-    [SerializeField] private ModelAsset yazhModel;
+    [Tooltip("Path relative to Assets/StreamingAssets/, e.g. MLModels/yazh-30k-int8.onnx")]
+    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.onnx";
+    [SerializeField] private string tokenizerPath = "MLModels/yazh-tokenizer.json";
+
     private Worker worker;
     private bool isModelReady = false;
 
-    private Dictionary<string, int> tamilTokenizer = new(); // 30K tokens
-    private List<string> idToToken = new();
+    private YazhTokenizer tokenizer;
+    private const int VOCAB_SIZE = 30000;
 
     private void Awake()
     {
@@ -31,26 +56,31 @@ public class YazhInferenceEngine : MonoBehaviour
     }
 
     /// <summary>
-    /// Initialize model asynchronously
+    /// Initialize model asynchronously. `overrideModelPath`, if given, is a path
+    /// relative to Assets/StreamingAssets/ (e.g. "MLModels/yazh-30k-int8.onnx").
+    /// Kept as a parameter for call-site compatibility with existing callers.
     /// </summary>
-    public async Task InitializeAsync(string modelPath)
+    public async Task InitializeAsync(string overrideModelPath = null)
     {
-        // Unity APIs (Resources.Load, ModelLoader, Worker) are main-thread-only,
+        if (!string.IsNullOrEmpty(overrideModelPath))
+            modelPath = overrideModelPath;
+
+        // Unity APIs (ModelLoader, Worker) are main-thread-only,
         // so initialization runs on the main thread; yield once to stay awaitable.
         await Task.Yield();
 
         try
         {
-            // Load ONNX model via Inference Engine
-            ModelAsset modelAsset = Resources.Load<ModelAsset>(modelPath);
-            if (modelAsset == null)
+            string modelFilePath = Path.Combine(Application.streamingAssetsPath, modelPath);
+
+            if (!File.Exists(modelFilePath))
             {
-                Debug.LogError($"[YazhInferenceEngine] Model not found: {modelPath}");
+                Debug.LogError($"[YazhInferenceEngine] Model not found at {modelFilePath}");
                 return;
             }
 
             // Build the runtime model and create a worker for inference
-            Model model = ModelLoader.Load(modelAsset);
+            Model model = ModelLoader.Load(modelFilePath);
             worker = new Worker(model, BackendType.GPUCompute);
 
             LoadTamilTokenizer();
@@ -60,28 +90,38 @@ public class YazhInferenceEngine : MonoBehaviour
         }
         catch (System.Exception ex)
         {
+            // Expected to hit this until real trained weights replace the
+            // placeholder files in StreamingAssets/MLModels — DialogueSystem's
+            // scripted fallback keeps the pet responsive in the meantime.
             Debug.LogError($"[YazhInferenceEngine] Initialization failed: {ex.Message}");
         }
     }
 
     private void LoadTamilTokenizer()
     {
-        // Load 30K Tamil tokenizer from JSON
-        TextAsset tokenizerAsset = Resources.Load<TextAsset>("Config/TamilTokenizer");
-        if (tokenizerAsset != null)
+        string tokenizerFilePath = Path.Combine(Application.streamingAssetsPath, tokenizerPath);
+
+        tokenizer = new YazhTokenizer();
+
+        if (!File.Exists(tokenizerFilePath))
         {
-            // Parse token vocabulary (token_string -> token_id mapping)
-            // Expected format: {"token": id, "token2": id, ...}
-            Debug.Log("[YazhInferenceEngine] Tamil tokenizer loaded (30K tokens)");
+            Debug.LogWarning($"[YazhInferenceEngine] Tokenizer file not found at {tokenizerFilePath}; using default Tamil Unicode vocabulary.");
         }
+
+        // Populates the Tamil Unicode-range char vocabulary + special tokens
+        // (see YazhTokenizer in YazhInferenceManager.cs).
+        tokenizer.LoadVocabulary(tokenizerFilePath);
+        Debug.Log("[YazhInferenceEngine] Tamil tokenizer loaded");
     }
 
     /// <summary>
-    /// Run inference: input text → token IDs
+    /// Run inference: input text → next-token id (greedy, single-token per
+    /// call — matches the documented MVP limitation; multi-token generation
+    /// is a separate follow-up).
     /// </summary>
     public async Task<List<int>> InferenceAsync(string input, string context = "")
     {
-        if (!isModelReady)
+        if (!isModelReady || tokenizer == null)
         {
             Debug.LogError("[YazhInferenceEngine] Model not ready");
             return new List<int>();
@@ -91,76 +131,69 @@ public class YazhInferenceEngine : MonoBehaviour
 
         // Worker scheduling must happen on the main thread (Unity Inference Engine).
         await Task.Yield();
+
+        try
         {
-            try
+            // Build prompt: system message + context + input
+            var prompt = $"You are a Tamil-speaking pet companion.\n{context}\nInput: {input}\nResponse:";
+            int[] promptTokens = tokenizer.Encode(prompt);
+
+            var tensorData = new float[promptTokens.Length];
+            for (int i = 0; i < promptTokens.Length; i++)
+                tensorData[i] = promptTokens[i];
+
+            using (var inputTensor = new Tensor<float>(new TensorShape(1, promptTokens.Length), tensorData))
             {
-                // Tokenize input
-                var inputTokens = TokenizeTamil(input);
+                worker.Schedule(inputTensor);
+                var output = worker.PeekOutput() as Tensor<float>;
+                output.CompleteAllPendingOperations();
 
-                // Build prompt: system message + context + input
-                var prompt = $"You are a Tamil-speaking pet companion.\n{context}\nInput: {input}\nResponse:";
-                var promptTokens = TokenizeTamil(prompt);
-
-                // Run model inference (streaming token generation)
-                var tensorData = new float[promptTokens.Count];
-                for (int i = 0; i < promptTokens.Count; i++)
-                    tensorData[i] = promptTokens[i];
-
-                using (var inputTensor = new Tensor<float>(new TensorShape(1, promptTokens.Count), tensorData))
-                {
-                    worker.Schedule(inputTensor);
-                    var output = worker.PeekOutput() as Tensor<float>;
-                    output.CompleteAllPendingOperations();
-
-                    // Extract top-k tokens (greedy decoding for simplicity)
-                    var outputData = output.DownloadToArray();
-                    for (int i = 0; i < outputData.Length && tokens.Count < 50; i++)
-                    {
-                        // Logits → argmax → top token
-                        int tokenId = (int)outputData[i]; // Simplified
-                        tokens.Add(tokenId);
-                    }
-                }
-
-                Debug.Log($"[YazhInferenceEngine] Generated {tokens.Count} tokens in <150ms");
+                float[] logits = output.DownloadToArray();
+                int nextToken = Argmax(logits);
+                tokens.Add(nextToken);
             }
-            catch (System.Exception ex)
-            {
-                Debug.LogError($"[YazhInferenceEngine] Inference error: {ex.Message}");
-            }
+
+            Debug.Log($"[YazhInferenceEngine] Generated {tokens.Count} token(s)");
+        }
+        catch (System.Exception ex)
+        {
+            Debug.LogError($"[YazhInferenceEngine] Inference error: {ex.Message}");
         }
 
         return tokens;
+    }
+
+    /// <summary>Greedy argmax over the last VOCAB_SIZE logits in the output.</summary>
+    private int Argmax(float[] logits)
+    {
+        if (logits == null || logits.Length == 0)
+            return 0;
+
+        int start = System.Math.Max(0, logits.Length - VOCAB_SIZE);
+        float maxLogit = float.MinValue;
+        int maxIdx = 0;
+
+        for (int i = start; i < logits.Length; i++)
+        {
+            if (logits[i] > maxLogit)
+            {
+                maxLogit = logits[i];
+                maxIdx = i - start;
+            }
+        }
+
+        return maxIdx % VOCAB_SIZE;
     }
 
     /// <summary>
-    /// Convert tokens back to Tamil text
+    /// Convert tokens back to Tamil text.
     /// </summary>
     public string DecodeTokens(List<int> tokens)
     {
-        string result = "";
-        foreach (var tokenId in tokens)
-        {
-            if (tokenId >= 0 && tokenId < idToToken.Count)
-                result += idToToken[tokenId];
-        }
-        return result.Trim();
-    }
+        if (tokenizer == null || tokens == null || tokens.Count == 0)
+            return string.Empty;
 
-    private List<int> TokenizeTamil(string text)
-    {
-        // Tokenize Tamil text into 30K vocabulary
-        var tokens = new List<int>();
-
-        foreach (char c in text)
-        {
-            if (tamilTokenizer.TryGetValue(c.ToString(), out int tokenId))
-                tokens.Add(tokenId);
-            else
-                tokens.Add(0); // Unknown token → 0 (graceful fallback)
-        }
-
-        return tokens;
+        return tokenizer.Decode(tokens.ToArray());
     }
 
     private void OnDestroy()
