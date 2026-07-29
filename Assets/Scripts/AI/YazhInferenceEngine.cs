@@ -80,8 +80,9 @@ public class YazhInferenceEngine : MonoBehaviour
             }
 
             // Build the runtime model and create a worker for inference
-            Model model = ModelLoader.Load(modelFilePath);
-            worker = new Worker(model, BackendType.GPUCompute);
+            // Backend selection with CPU fallback for devices lacking
+            // compute-shader support (see YazhBackendSelector, Issue #2).
+            worker = YazhBackendSelector.CreateWorkerSafe(model, "[YazhInferenceEngine]");
 
             LoadTamilTokenizer();
             isModelReady = true;

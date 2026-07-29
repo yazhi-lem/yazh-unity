@@ -85,8 +85,9 @@ public class YazhInferenceManager : MonoBehaviour
         // Set inference worker backend (CPU for mobile)
         if (isModelReady)
         {
-            // For production: use GPU if available; fall back to CPU
-            inferenceWorker = new Worker(yazhModel, BackendType.GPUCompute);
+            // Backend selection with CPU fallback for devices lacking
+            // compute-shader support (see YazhBackendSelector, Issue #2).
+            inferenceWorker = YazhBackendSelector.CreateWorkerSafe(yazhModel, "[Yazh AI]");
             Debug.Log("[Yazh AI] Inference worker initialized");
 
             // Run warm-up inference to prime the model
