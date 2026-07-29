@@ -34,7 +34,6 @@ public class DialogueSystem : MonoBehaviour
 
     [SerializeField] private int contextWindowSize = 8;
     private Queue<DialogueExchange> dialogueHistory = new();
-    private YazhInferenceEngine yazhEngine;
     private AudioSyncManager audioSync;
 
     private void Awake()
@@ -47,7 +46,6 @@ public class DialogueSystem : MonoBehaviour
 
     private void Start()
     {
-        yazhEngine = GetComponent<YazhInferenceEngine>() ?? FindFirstObjectByType<YazhInferenceEngine>();
         audioSync = GetComponent<AudioSyncManager>() ?? FindFirstObjectByType<AudioSyncManager>();
     }
 
@@ -109,10 +107,10 @@ public class DialogueSystem : MonoBehaviour
         string tamilResponse = null;
 
         // Inference via the on-device Yazh 30K model when available.
-        if (yazhEngine != null)
+        var inference = YazhInferenceManager.Instance;
+        if (inference != null && inference.IsModelReady())
         {
-            var tokens = await yazhEngine.InferenceAsync(input, context);
-            tamilResponse = yazhEngine.DecodeTokens(tokens);
+            tamilResponse = await inference.GenerateResponseAsync(input, context);
         }
 
         // Model missing or returned nothing → scripted fallback keeps the pet alive.

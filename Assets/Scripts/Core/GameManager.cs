@@ -15,7 +15,7 @@ public class GameManager : MonoBehaviour
     private PetManager petManager;
     private DialogueSystem dialogueSystem;
     private SurvivalSystem survivalSystem;
-    private YazhInferenceEngine yazhEngine;
+    private YazhInferenceManager yazhInference;
     private YazhLife yazhLife;
 
     public enum GameState
@@ -52,7 +52,10 @@ public class GameManager : MonoBehaviour
         petManager = GetComponent<PetManager>() ?? gameObject.AddComponent<PetManager>();
         dialogueSystem = GetComponent<DialogueSystem>() ?? gameObject.AddComponent<DialogueSystem>();
         survivalSystem = GetComponent<SurvivalSystem>() ?? gameObject.AddComponent<SurvivalSystem>();
-        yazhEngine = GetComponent<YazhInferenceEngine>() ?? gameObject.AddComponent<YazhInferenceEngine>();
+        // YazhInferenceManager initializes itself (model load, tokenizer,
+        // worker) synchronously inside its own Awake(), which AddComponent
+        // triggers immediately — no separate async init call needed here.
+        yazhInference = GetComponent<YazhInferenceManager>() ?? gameObject.AddComponent<YazhInferenceManager>();
         yazhLife = GetComponent<YazhLife>() ?? gameObject.AddComponent<YazhLife>();
 
         // Connect life events to game behaviour
@@ -63,11 +66,8 @@ public class GameManager : MonoBehaviour
         Debug.Log("[GameManager] All managers initialized");
     }
 
-    private async void Start()
+    private void Start()
     {
-        // Load Yazh 30K model asynchronously
-        await yazhEngine.InitializeAsync("Assets/Models/AI/yazh_30k.onnx");
-        
         // AR Session management
         if (arSession != null)
         {
