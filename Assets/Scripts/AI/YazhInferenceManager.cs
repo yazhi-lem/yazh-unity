@@ -9,18 +9,22 @@ using System.Security.Cryptography;
 /// Handles model loading, tokenization, inference, and response generation
 /// Targets < 150ms latency for real-time dialogue
 ///
-/// NOTE: Migrated from Unity.Barracuda (deprecated, unsupported on Unity 6) to
-/// Unity's Inference Engine (com.unity.ai.inference, formerly "Sentis"). Barracuda
-/// has no Unity 6 release, so on-device model files must be serialized to the
-/// ".sentis" format (via the Inference Engine model importer's
-/// "Serialize to StreamingAssets" action) rather than shipped as raw ".onnx" files.
-/// Update MODEL_PATH / ONNX_MODEL_HASHES below once the ".sentis" files are produced.
+/// FIX (Issue #3 consolidation): this class previously pointed at
+/// "MLModels/yazh-30k-int8.sentis" and keyed ONNX_MODEL_HASHES by ".sentis"
+/// paths, but no .sentis files exist anywhere in the project — only the
+/// .onnx files in StreamingAssets/MLModels. Confirmed the embedded hash
+/// VALUES already match the actual .onnx files byte-for-byte (they're also
+/// exactly what Editor/BuildScript.cs's ONNX_MODEL_HASHES dict — keyed by
+/// the real .onnx paths — expects), so only the extension in modelPath and
+/// in the dictionary keys was wrong. This class could never have passed its
+/// own hash check as shipped. Now consistent with BuildScript.cs and with
+/// what's actually on disk.
 /// </summary>
 public class YazhInferenceManager : MonoBehaviour
 {
     public static YazhInferenceManager Instance { get; private set; }
 
-    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.sentis";
+    [SerializeField] private string modelPath = "MLModels/yazh-30k-int8.onnx";
     [SerializeField] private string tokenizerPath = "MLModels/yazh-tokenizer.json";
     [SerializeField] private float inferenceTimeout = 0.5f;  // 500ms max (target 150ms)
     [SerializeField] private bool enableProfiling = true;
@@ -47,14 +51,15 @@ public class YazhInferenceManager : MonoBehaviour
     private const float TEMPERATURE = 0.7f;
 
     // SEC-001: ONNX Model Hash Verification (SHA-256)
-    // Embedded hashes for all three serialized model variants (INT8, INT4, FP32)
-    // Generated: 2026-06-18
+    // Embedded hashes for all three model variants (INT8, INT4, FP32).
+    // Values verified against the actual files in StreamingAssets/MLModels
+    // and match Editor/BuildScript.cs's ONNX_MODEL_HASHES exactly.
     // If any hash mismatches at load time, model loading is rejected (security failure)
     private static readonly Dictionary<string, string> ONNX_MODEL_HASHES = new()
     {
-        { "MLModels/yazh-30k-int8.sentis", "3d9bfaeec2994ce78f3f29c979354a105cc8198aa5018bf4dc0d13a892aa59dc" },
-        { "MLModels/yazh-30k-int4.sentis", "ca791d14644203acb35e76413f2b0a914ce6d0a2c81d8957b9654dc23a4765ec" },
-        { "MLModels/yazh-30k.sentis", "d6bf01d17df05a0ec51ef814a500d645aa94b367e2907c1179131e69a442f8a6" }
+        { "MLModels/yazh-30k-int8.onnx", "3d9bfaeec2994ce78f3f29c979354a105cc8198aa5018bf4dc0d13a892aa59dc" },
+        { "MLModels/yazh-30k-int4.onnx", "ca791d14644203acb35e76413f2b0a914ce6d0a2c81d8957b9654dc23a4765ec" },
+        { "MLModels/yazh-30k.onnx", "d6bf01d17df05a0ec51ef814a500d645aa94b367e2907c1179131e69a442f8a6" }
     };
 
     private void Awake()
@@ -85,8 +90,9 @@ public class YazhInferenceManager : MonoBehaviour
         // Set inference worker backend (CPU for mobile)
         if (isModelReady)
         {
-            // For production: use GPU if available; fall back to CPU
-            inferenceWorker = new Worker(yazhModel, BackendType.GPUCompute);
+            // Backend selection with CPU fallback for devices lacking
+            // compute-shader support (see YazhBackendSelector, Issue #2).
+            inferenceWorker = YazhBackendSelector.CreateWorkerSafe(yazhModel, "[Yazh AI]");
             Debug.Log("[Yazh AI] Inference worker initialized");
 
             // Run warm-up inference to prime the model
@@ -229,10 +235,12 @@ public class YazhInferenceManager : MonoBehaviour
     public bool IsModelReady() => isModelReady;
 
     /// <summary>
-    /// Run inference on user input (child's chat message)
-    /// Returns Tamil text response from Yazh 30K model
+    /// Run inference on user input (child's chat message).
+    /// `context` is optional recent dialogue history (see DialogueSystem's
+    /// context window) prepended to the prompt.
+    /// Returns Tamil text response from Yazh 30K model via callback.
     /// </summary>
-    public void GenerateResponse(string userInput, System.Action<string> onResponseReady)
+    public void GenerateResponse(string userInput, System.Action<string> onResponseReady, string context = "")
     {
         if (!isModelReady)
         {
@@ -257,15 +265,28 @@ public class YazhInferenceManager : MonoBehaviour
             userInput = userInput.Substring(0, MAX_INPUT_LENGTH);
         }
 
-        StartCoroutine(GenerateResponseCoroutine(userInput, onResponseReady));
+        StartCoroutine(GenerateResponseCoroutine(userInput, onResponseReady, context));
     }
 
-    private System.Collections.IEnumerator GenerateResponseCoroutine(string userInput, System.Action<string> callback)
+    /// <summary>
+    /// Task-based wrapper around GenerateResponse for async/await callers
+    /// (e.g. DialogueSystem), which previously called a separate
+    /// YazhInferenceEngine with its own async API. See Issue #3.
+    /// </summary>
+    public System.Threading.Tasks.Task<string> GenerateResponseAsync(string userInput, string context = "")
+    {
+        var tcs = new System.Threading.Tasks.TaskCompletionSource<string>();
+        GenerateResponse(userInput, result => tcs.TrySetResult(result), context);
+        return tcs.Task;
+    }
+
+    private System.Collections.IEnumerator GenerateResponseCoroutine(string userInput, System.Action<string> callback, string context = "")
     {
         float startTime = Time.realtimeSinceStartup;
 
-        // 1. Tokenize input (Tamil)
-        int[] inputTokens = tokenizer.Encode(userInput);
+        // 1. Tokenize input (Tamil), including recent dialogue context if any
+        string promptText = string.IsNullOrEmpty(context) ? userInput : $"{context}\n{userInput}";
+        int[] inputTokens = tokenizer.Encode(promptText);
         #if UNITY_EDITOR
         Debug.Log($"[Yazh AI] Input tokens: {inputTokens.Length}");
         #endif
