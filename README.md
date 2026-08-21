@@ -5,6 +5,8 @@
 **Platforms:** iOS 12+ / Android 7+ (ARKit/ARCore)  
 **AI Model:** Yazh 30K (Tamil, on-device ONNX via Barracuda)
 
+See [NEXT_ACTION.md](./NEXT_ACTION.md) for the roadmap, **October 2026 Pilot**, and **December 2026 Launch** deliverables.
+
 ---
 
 ## Game Overview
