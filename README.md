@@ -146,7 +146,7 @@ setup (Unity license secrets): [docs/deployment/CI_SETUP.md](docs/deployment/CI_
 
 ## License
 
-MIT — See LICENSE file
+GPL-3.0 — See [LICENSE](LICENSE)
 
 ---
 
