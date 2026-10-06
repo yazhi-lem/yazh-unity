@@ -6,7 +6,7 @@ Intelligent Tamil-first XR app for children (ages 6-14).
 
 - **4 Pet Companions:** Kuruvi (sparrow), Maan (deer), Yanai (elephant), Pulliruvi (dove)
 - **4 Sangam-inspired Biomes:** Forest, Village, Mountain, Coast
-- **Tamil-First AI:** Yazh 30K-token model, native Tamil only
+- **Tamil-First AI:** Yazh 30K-token model, native Tamil only (planned; the bundled `.onnx` files are placeholders and real trained models are still needed)
 - **On-Device Inference:** Barracuda ONNX Runtime (no cloud)
 - **Survival Mechanics:** 7-day challenge loops, resource gathering
 - **AR-First:** iOS ARKit + Android ARCore support
