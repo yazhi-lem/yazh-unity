@@ -3,7 +3,7 @@
 **Status:** Prototype / Foundation  
 **Engine:** Unity 6 LTS (C#)  
 **Platforms:** iOS 12+ / Android 7+ (ARKit/ARCore)  
-**AI Model:** Yazh 30K (Tamil, on-device ONNX via Barracuda)
+**AI Model:** Yazh 30K (Tamil, on-device ONNX via Barracuda). **Not trained yet:** the bundled `.onnx` files are placeholders, see [Model status](#model-status)
 
 See [NEXT_ACTION.md](./NEXT_ACTION.md) for the roadmap, **October 2026 Pilot**, and **December 2026 Launch** deliverables.
 
@@ -42,7 +42,7 @@ yazh-unity/
 │   │   └── WebGL/             # Web fallback build
 │   ├── Resources/             # Icons, textures, biome assets
 │   └── StreamingAssets/
-│       └── MLModels/          # ONNX models (yazh-30k.onnx, int4, int8)
+│       └── MLModels/          # PLACEHOLDER .onnx files (header + zeros), no trained models yet
 │
 ├── Packages/                  # Unity package dependencies
 ├── ProjectSettings/           # Unity project settings
@@ -96,7 +96,7 @@ See [docs/SETUP.md](docs/SETUP.md) for full setup guide.
 - **2,485 lines** of C# across 8+ systems
 - **4 scenes** (MainMenu, PetSelection, BiomeArena, SettingsMenu)
 - **4 pets** with distinct AI personalities
-- **ONNX inference** (Yazh 30K, on-device, <50ms latency)
+- **ONNX inference code** (Yazh 30K, on-device). No trained model yet, so no latency has been measured
 - **COPPA compliant** (children's privacy)
 
 ---
@@ -121,6 +121,15 @@ See [docs/SETUP.md](docs/SETUP.md) for full setup guide.
 
 ---
 
+## Model Status
+
+The three files `Assets/StreamingAssets/MLModels/yazh-30k*.onnx` are **placeholder
+files**, not trained models: each is a short `ONNX` header followed by zeros, with
+no weights or graph, so it cannot be loaded for inference. `yazh-tokenizer.json`
+has metadata only and no vocabulary. **Real trained models (and a real tokenizer)
+are still needed.** Until then the app uses its scripted Tamil dialogue fallback.
+Details: [docs/MODEL_STATUS.md](docs/MODEL_STATUS.md).
+
 ## CI/CD
 
 GitHub Actions builds a debug-signed APK on every push to `main`/`develop`
@@ -137,9 +146,9 @@ setup (Unity license secrets): [docs/deployment/CI_SETUP.md](docs/deployment/CI_
 
 ## License
 
-MIT — See LICENSE file
+GPL-3.0 — See [LICENSE](LICENSE)
 
 ---
 
 **Last Updated:** 2026-07-05  
-**Status:** Production-ready code, awaiting deployment credentials
+**Status:** Prototype code; awaiting trained ML models and deployment credentials

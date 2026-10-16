@@ -1,27 +1,48 @@
 # YAZH-UNITY Model Status Report
+
+> **⚠️ Status correction (Oct 2026): there are no trained models in this repo.**
+>
+> The three `.onnx` files in `Assets/StreamingAssets/MLModels/` are **placeholder files**,
+> not trained models. Each one is a 20-byte header (`ONNX` magic bytes, a few
+> integers, and the string `Yazh`) followed only by zero bytes, padded out to
+> 2.5 / 5 / 10 MB. They contain no weights and no graph, and they are not valid
+> ONNX protobuf, so Barracuda/Sentis cannot load them for inference.
+>
+> `yazh-tokenizer.json` is also a placeholder. It holds metadata only (vocab size,
+> model type, special-token names) and has **no vocabulary and no BPE merges**.
+>
+> **Real trained models and a real tokenizer are still needed.** Until they exist,
+> the app runs on its scripted Tamil dialogue fallback (CI builds are model-less
+> by default). Any latency figures below are estimates, not measurements.
+> The rest of this report was written in June 2026 and has been corrected where it
+> described these files as working models.
+
 ## ARIVU — ML Integration — Rotation 25 (Jun 17, 2026)
 
 ---
 
 ## Model Inventory
 
-All models deployed at: `Assets/StreamingAssets/MLModels/`
+Placeholder files at: `Assets/StreamingAssets/MLModels/` (none of these are trained models)
 
-| File | Format | Size | Precision | Use Case |
+| File | Format | Size | Intended precision | Actual contents |
 |------|--------|------|-----------|----------|
-| `yazh-30k.onnx` | ONNX | 10.0 MB | FP32 | Highest quality, dev/testing |
-| `yazh-30k-int8.onnx` | ONNX | 5.0 MB | INT8 | **Recommended default** — best speed/quality tradeoff |
-| `yazh-30k-int4.onnx` | ONNX | 2.5 MB | INT4 | Smallest size, low-end devices |
-| `yazh-tokenizer.json` | JSON | 220 B | — | BPE vocabulary config |
+| `yazh-30k.onnx` | Placeholder | 10.0 MB | FP32 (planned) | 20-byte header + zeros, no weights |
+| `yazh-30k-int8.onnx` | Placeholder | 5.0 MB | INT8 (planned) | 20-byte header + zeros, no weights |
+| `yazh-30k-int4.onnx` | Placeholder | 2.5 MB | INT4 (planned) | 20-byte header + zeros, no weights |
+| `yazh-tokenizer.json` | JSON | 220 B | — | Metadata only, no vocabulary or merges |
 
 ### ONNX File Validation
-- All 3 model files have valid ONNX magic bytes (`4f4e4e58` = "ONNX")
-- Files are NOT standard protobuf — use custom Yazh serialization format
-- Compatible with Unity Barracuda ONNX loader
+- Each of the 3 files starts with the bytes `ONNX` (`4f4e4e58`), but that is the only
+  content: after a 20-byte header, every remaining byte is zero.
+- They are not valid ONNX (protobuf) models and there is no "custom Yazh
+  serialization format". They will **not** load in Barracuda/Sentis.
+- They are placeholders that reserve the file names and approximate sizes until
+  real trained models are exported.
 
 ---
 
-## Model Specification
+## Model Specification (planned, not yet trained)
 
 ```
 Architecture:     Transformer decoder (~30M parameters)
@@ -40,8 +61,8 @@ Tokenizer:        BPE (Byte-Pair Encoding), HuggingFace format
 
 File: `Assets/Scripts/AI/YazhInferenceManager.cs` (471 lines)
 
-### What Works
-- ONNX model loading via `ModelLoader.Load()` from StreamingAssets
+### What Works (code paths only; never exercised with a real model)
+- ONNX model loading code via `ModelLoader.Load()` from StreamingAssets (the current placeholder files will not load)
 - Tokenizer with Tamil Unicode range (U+0B80–U+0BFF) + special tokens
 - Input tensor creation: `[1, 256]` padded format
 - Greedy argmax decoding (single token output)
@@ -131,7 +152,8 @@ Cannot benchmark without Unity Editor. These are estimates based on model sizes.
 - **Cannot run Unity** — no Unity Editor on Zorba (armhf Linux, no Unity armhf build)
 - **Cannot benchmark actual latency** — requires Unity + Barracuda runtime
 - **ONNX Python package unavailable** — pip install too slow on RPi, cannot validate model shapes programmatically
-- **Tokenizer.json is minimal** — only 220 bytes, contains metadata but not actual BPE merges
+- **No trained models** — the 3 `.onnx` files are placeholders (header + zeros); real trained models still need to be trained and exported
+- **No tokenizer vocabulary** — `yazh-tokenizer.json` is 220 bytes of metadata with no vocabulary and no BPE merges
 
 ---
 
